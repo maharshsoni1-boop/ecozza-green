@@ -1,26 +1,110 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAF8F5;
+  --foreground: #121614;
+  --primary-dark: #121614;
+  --forest-dark: #162E20;
+  --forest-base: #1E3A2B;
+  --forest-vibrant: #2E6B47;
+  --earth-terracotta: #C06D38;
+  --sand-50: #FDFBF7;
+  --sand-100: #FAF8F5;
+  --sand-200: #EFEBE1;
+  --border-subtle: #E5E0D6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-forest-900: #0E1D14;
+  --color-forest-800: #162E20;
+  --color-forest-700: #1E3A2B;
+  --color-forest-600: #2E6B47;
+  --color-forest-500: #388E5A;
+  --color-forest-100: #E9F4EE;
+  --color-earth-600: #C06D38;
+  --color-earth-700: #A55724;
+  --color-earth-100: #FBF0E6;
+  --color-carbon-900: #121614;
+  --color-carbon-800: #1B211E;
+  --color-carbon-700: #28302C;
+  --color-sand-50: #FDFBF7;
+  --color-sand-100: #FAF8F5;
+  --color-sand-200: #EFEBE1;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: var(--font-heading), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Glassmorphism Navigation */
+.glass-nav {
+  background: rgba(253, 251, 247, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(229, 224, 214, 0.8);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(229, 224, 214, 0.8);
+}
+
+.glass-card-dark {
+  background: rgba(22, 46, 32, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(46, 107, 71, 0.3);
+}
+
+/* Custom Soil & Carbon Badges */
+.badge-carbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #162E20;
+  color: #8DE0AD;
+  border: 1px solid rgba(141, 224, 173, 0.2);
+}
+
+.badge-earth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #FBF0E6;
+  color: #A55724;
+  border: 1px solid rgba(192, 109, 56, 0.3);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F0E8;
+}
+::-webkit-scrollbar-thumb {
+  background: #C4BCAC;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9E9584;
 }

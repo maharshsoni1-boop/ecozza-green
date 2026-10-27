@@ -1,0 +1,260 @@
+// Ecozza Green Prisma Schema
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --------------------------------------------------------
+// USER & AUTH
+// --------------------------------------------------------
+model User {
+  id           String    @id @default(cuid())
+  email        String?   @unique
+  phone        String?   @unique
+  name         String?
+  role         String    @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
+  gstNumber    String?
+  companyName  String?
+  passwordHash String?   // Hashed credentials for admin/staff
+  addresses    Address[]
+  orders       Order[]
+  reviews      Review[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName     String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  landmark     String?
+  city         String
+  state        String
+  postalCode   String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+// --------------------------------------------------------
+// PRODUCTS, VARIANTS & LAB REPORTS
+// --------------------------------------------------------
+model Product {
+  id                String           @id @default(cuid())
+  slug              String           @unique
+  name              String
+  tagline           String?
+  shortDescription  String
+  description       String           // Detailed agronomic and usage markdown
+  category          String           // "Soil Conditioner", "Nursery Mix", etc.
+  hsnCode           String           @default("31059090") // FCO organic conditioner HSN
+  gstRatePercentage Float            @default(5.0)       // 5% standard GST
+  isPublished       Boolean          @default(true)
+  scoopSizeGrams    Float?           @default(50.0)
+  dosePerPotGrams   Float?           @default(100.0)
+  dosePerTreeGrams  Float?           @default(500.0)
+  images            String           // JSON string of image URLs
+  variants          ProductVariant[]
+  batchReports      BatchLabReport[]
+  reviews           Review[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model ProductVariant {
+  id              String      @id @default(cuid())
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title           String      // "5 kg Bag", "10 kg Bag", "25 kg Bag", "1 Tonne Bulk Jumbo Bag"
+  weightKg        Float       // 5.0, 10.0, 25.0, 1000.0
+  price           Float       // GST-inclusive price in INR
+  compareAtPrice  Float?      // Strikethrough price
+  sku             String      @unique
+  stockQuantity   Int         @default(0)
+  isBulkQuoteOnly Boolean     @default(false) // "Request Quote" instead of direct checkout
+  isActive        Boolean     @default(true)
+  orderItems      OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model BatchLabReport {
+  id                 String    @id @default(cuid())
+  batchNumber        String    @unique // e.g., "EG-2026-B04"
+  productId          String?
+  product            Product?  @relation(fields: [productId], references: [id])
+  testDate           DateTime?
+  labName            String?   // e.g. "NABL Accredited Soil Testing Lab"
+  labReportPdfUrl    String?   // Link to certified lab report PDF
+  carbonPercentage   Float?    // e.g. 72.5%
+  phValue            Float?    // e.g. 7.8
+  moisturePercentage Float?    // e.g. 8.2%
+  granuleSizeMm      String?   // e.g. "2 mm - 5 mm"
+  bulkDensity        Float?    // e.g. 0.42 g/cm3
+  heavyMetalsTested  Boolean   @default(true)
+  heavyMetalsSummary String?   // "Below detection limits (FCO Compliant)"
+  notes              String?
+  isVerified         Boolean   @default(false) // True when verified certificate uploaded
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// --------------------------------------------------------
+// ORDERS & INVOICES
+// --------------------------------------------------------
+model Order {
+  id                String        @id @default(cuid())
+  orderNumber       String        @unique // e.g., "EG-ORD-10024"
+  userId            String?
+  user              User?         @relation(fields: [userId], references: [id])
+  customerEmail     String
+  customerPhone     String
+  customerName      String
+  shippingAddress   String        // JSON string of shipping address details
+  billingAddress    String        // JSON string of billing address details
+  customerGstin     String?       // Optional GSTIN for B2B input tax credit
+  orderStatus       String        @default("PLACED") // PLACED, PAID, PACKED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+  paymentStatus     String        @default("PENDING") // PENDING, AUTHORIZED, CAPTURED, FAILED, REFUNDED
+  paymentMethod     String        @default("RAZORPAY") // RAZORPAY, COD
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  subtotalAmount    Float         // In INR
+  discountAmount    Float         @default(0.0)
+  shippingAmount    Float         @default(0.0)
+  taxAmount         Float         // Computed 5% GST component
+  totalAmount       Float         // Final payable in INR
+  trackingNumber    String?
+  carrierName       String?       @default("Shiprocket")
+  trackingUrl       String?
+  invoiceNumber     String?       @unique // e.g., "INV-2026-0042"
+  orderItems        OrderItem[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model OrderItem {
+  id           String         @id @default(cuid())
+  orderId      String
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId    String
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+  productName  String         // Snapshot at order placement
+  variantTitle String         // Snapshot
+  weightKg     Float
+  unitPrice    Float          // Unit price inclusive of GST
+  gstRate      Float          // e.g. 5.0
+  quantity     Int
+  totalPrice   Float
+}
+
+// --------------------------------------------------------
+// DOSE CALCULATOR RULES (ADMIN-EDITABLE)
+// --------------------------------------------------------
+model DoseRule {
+  id                    String   @id @default(cuid())
+  plantCategory         String   // "Potted Plants", "Fruit Orchards", "Vegetables & Greens", "Nursery Beds"
+  cropName              String   // "Tomatoes, Chillies & Eggplant", "Citrus, Mango & Guava", etc.
+  unitType              String   // POT, TREE, ACRE, SQFT
+  soilType              String   // "Sandy Soil", "Clayey / Heavy Soil", "Loamy Soil", "Degraded / Low Carbon"
+  recommendedDoseGrams  Float    // Recommended grams per unit (or kg per acre)
+  bagRecommendationText String?  // e.g., "Apply 100g per 12-inch pot mixed into topsoil"
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// --------------------------------------------------------
+// B2B LEADS & BULK ENQUIRIES
+// --------------------------------------------------------
+model LeadEnquiry {
+  id            String   @id @default(cuid())
+  name          String
+  companyName   String?
+  gstin         String?
+  phone         String
+  email         String?
+  locationState String
+  locationCity  String?
+  cropType      String?
+  quantityText  String   // "5 tonnes", "150 bags of 25kg"
+  message       String?
+  status        String   @default("NEW") // NEW, CONTACTED, QUOTED, CLOSED
+  adminNotes    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// --------------------------------------------------------
+// REVIEWS (VERIFIED BUYERS ONLY)
+// --------------------------------------------------------
+model Review {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+  reviewerName    String
+  rating          Int      // 1 to 5
+  title           String
+  comment         String
+  isVerifiedBuyer Boolean  @default(true)
+  isApproved      Boolean  @default(false) // Admin approval required
+  createdAt       DateTime @default(now())
+}
+
+// --------------------------------------------------------
+// SHIPPING RULES & PINCODES
+// --------------------------------------------------------
+model PincodeServiceability {
+  id              String  @id @default(cuid())
+  pincode         String  @unique
+  city            String
+  state           String
+  isServiceable   Boolean @default(true)
+  isCodAvailable  Boolean @default(false)
+  deliveryTatDays Int     @default(4)
+}
+
+model ShippingRateTier {
+  id                     String @id @default(cuid())
+  minWeightKg            Float
+  maxWeightKg            Float
+  baseRateInr            Float
+  perKgAdditionalRateInr Float  @default(0.0)
+  freeShippingThreshold  Float? // e.g. Free shipping above ₹1499
+}
+
+// --------------------------------------------------------
+// SYSTEM SETTINGS & FCO CONFIG
+// --------------------------------------------------------
+model SystemSetting {
+  key         String   @id
+  value       String   // Text or JSON value
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+// --------------------------------------------------------
+// BLOG & AGRONOMY KNOWLEDGE BASE
+// --------------------------------------------------------
+model BlogPost {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  excerpt         String
+  contentMarkdown String
+  coverImageUrl   String?
+  author          String    @default("Ecozza Green Agronomy Team")
+  isPublished     Boolean   @default(false)
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
