@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/invoice/PrintButton";
@@ -54,18 +55,30 @@ export default async function InvoicePage({ params }: InvoicePageProps) {
         <div className="bg-white p-8 sm:p-12 rounded-3xl border border-[#E5E0D6] shadow-sm print:shadow-none print:border-none print:p-0 print:rounded-none space-y-8 text-[#121614]">
           {/* Top Header */}
           <div className="flex justify-between items-start pb-6 border-b border-[#121614]">
-            <div>
-              <span className="text-2xl font-extrabold font-heading text-[#121614] tracking-tight">
-                Ecozza Green
-              </span>
-              <p className="text-xs text-[#58635B] mt-0.5 font-medium">
-                Granular Biochar Soil Conditioners
-              </p>
-              <div className="text-xs text-[#58635B] mt-2 space-y-0.5">
-                <div>Ecozza Green Facility, GIDC Industrial Estate</div>
-                <div>Gujarat - 382445, India</div>
-                <div><strong>GSTIN:</strong> 24AAAAE0000A1Z5 (State Code: 24 - Gujarat)</div>
-                <div><strong>Email:</strong> care@ecozzagreen.in</div>
+            <div className="flex items-start gap-4">
+              <div className="relative h-16 w-20 shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt="Ecozza Green"
+                  width={140}
+                  height={99}
+                  className="h-16 w-auto object-contain"
+                  priority
+                />
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold font-heading text-[#121614] tracking-tight">
+                  Ecozza Green
+                </span>
+                <p className="text-xs text-[#58635B] mt-0.5 font-medium">
+                  Granular Biochar Soil Conditioners
+                </p>
+                <div className="text-xs text-[#58635B] mt-2 space-y-0.5">
+                  <div>Ecozza Green Facility, GIDC Industrial Estate</div>
+                  <div>Gujarat - 382445, India</div>
+                  <div><strong>GSTIN:</strong> 24AAAAE0000A1Z5 (State Code: 24 - Gujarat)</div>
+                  <div><strong>Email:</strong> care@ecozzagreen.in</div>
+                </div>
               </div>
             </div>
 

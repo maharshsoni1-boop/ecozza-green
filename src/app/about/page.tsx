@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Leaf, MapPin, ShieldCheck, Factory, CheckCircle2, ArrowRight } from "lucide-react";
 
@@ -59,6 +60,31 @@ export default function AboutPage() {
                 Every bag carries a batch number traceable to certified laboratory tests (carbon %, pH, and heavy-metal tests).
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Brand Identity & The Carbon-Loop Emblem */}
+        <div className="bg-[#FAF8F5] p-8 sm:p-10 rounded-3xl border border-[#E5E0D6] flex flex-col md:flex-row items-center gap-8 shadow-2xs">
+          <div className="relative w-48 sm:w-56 shrink-0 flex items-center justify-center p-4 bg-white rounded-2xl border border-[#EFEBE1] shadow-xs">
+            <Image
+              src="/logo.png"
+              alt="Ecozza Green Logo Emblem"
+              width={260}
+              height={184}
+              className="w-full h-auto object-contain"
+              priority
+            />
+          </div>
+          <div className="space-y-3 text-left">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E9F4EE] text-[#1E3A2B] text-xs font-semibold">
+              <span>The Infinity Soil-Carbon Emblem</span>
+            </div>
+            <h3 className="text-xl font-bold font-heading text-[#121614]">
+              Symbolizing Permanent Carbon Sequestration
+            </h3>
+            <p className="text-xs text-[#58635B] leading-relaxed">
+              The Ecozza Green insignia features an eternal infinity loop. The left segment embodies porous, granular biochar carbon holding the soil together; the right segment transitions into thriving living foliage and renewable energy. It represents our closed-loop commitment to transforming woody biomass into perpetual soil health.
+            </p>
           </div>
         </div>
 

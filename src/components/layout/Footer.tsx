@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Leaf, PhoneCall, Mail, MapPin, ShieldCheck, ArrowUpRight } from "lucide-react";
 import { COMPLIANCE_CONFIG } from "@/lib/compliance";
 
@@ -12,8 +13,14 @@ export function Footer() {
           {/* Brand Col */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#1E3A2B] flex items-center justify-center text-[#8DE0AD] border border-[#2E6B47]/40">
-                <Leaf className="w-5 h-5" />
+              <div className="relative h-12 w-16 bg-white/10 backdrop-blur-xs rounded-xl p-1 flex items-center justify-center border border-white/10 shrink-0">
+                <Image
+                  src="/logo.png"
+                  alt="Ecozza Green Logo"
+                  width={120}
+                  height={85}
+                  className="h-10 w-auto object-contain brightness-110"
+                />
               </div>
               <span className="text-2xl font-bold font-heading text-white tracking-tight">
                 Ecozza Green

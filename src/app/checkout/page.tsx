@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { CheckoutClient } from "@/components/checkout/CheckoutClient";
 import { ShieldCheck, Truck, Lock } from "lucide-react";
 
@@ -15,17 +16,29 @@ export default function CheckoutPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Breadcrumb & Security strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E0D6]">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-[#58635B] mb-1">
-              <Link href="/" className="hover:text-[#121614]">Home</Link>
-              <span>/</span>
-              <Link href="/cart" className="hover:text-[#121614]">Cart</Link>
-              <span>/</span>
-              <span className="font-semibold text-[#121614]">Checkout</span>
+          <div className="flex items-center gap-4">
+            <div className="relative h-12 w-16 shrink-0 hidden sm:flex items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="Ecozza Green"
+                width={120}
+                height={85}
+                className="h-12 w-auto object-contain"
+                priority
+              />
             </div>
-            <h1 className="text-3xl font-extrabold text-[#121614] font-heading">
-              Complete Your Soil Conditioner Order
-            </h1>
+            <div>
+              <div className="flex items-center gap-2 text-xs text-[#58635B] mb-1">
+                <Link href="/" className="hover:text-[#121614]">Home</Link>
+                <span>/</span>
+                <Link href="/cart" className="hover:text-[#121614]">Cart</Link>
+                <span>/</span>
+                <span className="font-semibold text-[#121614]">Checkout</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#121614] font-heading">
+                Complete Your Soil Conditioner Order
+              </h1>
+            </div>
           </div>
 
           <div className="flex items-center gap-4 text-xs text-[#58635B]">

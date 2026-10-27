@@ -50,8 +50,14 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold text-[#8DE0AD]">
-                <Sparkles className="w-4 h-4 text-[#8DE0AD]" />
+              <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold text-[#8DE0AD]">
+                <Image
+                  src="/logo.png"
+                  alt="Ecozza Green"
+                  width={28}
+                  height={20}
+                  className="h-5 w-auto object-contain brightness-125"
+                />
                 <span>Engineered Biochar Soil Conditioner • Gujarat, India</span>
               </div>
 
@@ -122,6 +128,18 @@ export default async function HomePage() {
                   alt="Ecozza Green biochar granules honeycomb microscopic pores and root zone structure"
                   className="w-full h-[420px] object-cover group-hover:scale-105 transition-transform duration-700"
                 />
+
+                {/* Floating Official Brand Badge */}
+                <div className="absolute top-4 right-4 bg-[#121614]/85 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/20 flex items-center gap-2 shadow-lg z-10">
+                  <Image
+                    src="/logo.png"
+                    alt="Ecozza Green Brand Mark"
+                    width={48}
+                    height={34}
+                    className="h-6 w-auto object-contain brightness-110"
+                  />
+                  <span className="text-[11px] font-bold text-white tracking-wide">Official Brand</span>
+                </div>
 
                 {/* Floating Stat Overlay */}
                 <div className="absolute bottom-4 left-4 right-4 bg-[#121614]/90 backdrop-blur-md p-4 rounded-2xl border border-white/15 flex items-center justify-between">

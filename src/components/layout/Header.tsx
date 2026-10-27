@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useCart } from "@/context/CartContext";
 import {
   ShoppingBag,
@@ -61,11 +62,18 @@ export function Header() {
           <div className="flex items-center justify-between h-20">
             {/* Brand Logo strictly "Ecozza Green" */}
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1E3A2B] to-[#121614] flex items-center justify-center text-[#8DE0AD] shadow-md border border-[#2E6B47]/40 group-hover:scale-105 transition-transform">
-                <Leaf className="w-6 h-6" />
+              <div className="relative h-12 w-16 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Image
+                  src="/logo.png"
+                  alt="Ecozza Green Logo"
+                  width={140}
+                  height={99}
+                  className="h-12 w-auto object-contain"
+                  priority
+                />
               </div>
               <div className="flex flex-col">
-                <span className="text-2xl font-extrabold tracking-tight text-[#121614] font-heading leading-tight">
+                <span className="text-xl font-extrabold tracking-tight text-[#121614] font-heading leading-tight group-hover:text-[#1E3A2B] transition-colors">
                   Ecozza Green
                 </span>
                 <span className="text-[10px] tracking-widest uppercase font-semibold text-[#2E6B47]">

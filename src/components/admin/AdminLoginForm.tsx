@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { adminLogin } from "@/app/actions/admin-auth";
 import { Lock, Mail, ShieldCheck, ArrowRight, AlertCircle, KeyRound } from "lucide-react";
@@ -33,7 +34,17 @@ export function AdminLoginForm() {
 
   return (
     <div className="bg-white p-8 rounded-3xl border border-[#E5E0D6] shadow-xl space-y-6">
-      <div className="text-center space-y-1">
+      <div className="text-center space-y-2">
+        <div className="flex justify-center mb-1">
+          <Image
+            src="/logo.png"
+            alt="Ecozza Green"
+            width={140}
+            height={99}
+            className="h-16 w-auto object-contain"
+            priority
+          />
+        </div>
         <h1 className="text-2xl font-bold font-heading text-[#121614]">
           Ecozza Green Back-Office
         </h1>

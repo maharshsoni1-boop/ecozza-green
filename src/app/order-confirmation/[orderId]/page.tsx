@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -45,6 +46,16 @@ export default async function OrderConfirmationPage({ params }: OrderConfirmatio
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Celebration Header Card */}
         <div className="bg-white p-8 rounded-3xl border border-[#E5E0D6] shadow-sm text-center space-y-4">
+          <div className="flex justify-center mb-1">
+            <Image
+              src="/logo.png"
+              alt="Ecozza Green"
+              width={140}
+              height={99}
+              className="h-16 w-auto object-contain"
+              priority
+            />
+          </div>
           <div className="w-16 h-16 mx-auto rounded-full bg-[#E9F4EE] flex items-center justify-center text-[#2E6B47]">
             <CheckCircle2 className="w-10 h-10" />
           </div>
