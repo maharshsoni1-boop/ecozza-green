@@ -79,4 +79,15 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   }
 })
 
+// DELETE /api/enquiries/:id - Delete lead (e.g. test lead)
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string
+    await prisma.leadEnquiry.delete({ where: { id } })
+    res.json({ success: true, message: 'Enquiry deleted successfully' })
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to delete enquiry', details: err.message })
+  }
+})
+
 export default router

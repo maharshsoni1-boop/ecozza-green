@@ -76,6 +76,8 @@ const DEFAULT_RULES: DoseRule[] = [
   },
 ]
 
+import { apiUrl } from '@/lib/api'
+
 export function DoseCalculator({
   onAddRecommended,
 }: {
@@ -87,7 +89,7 @@ export function DoseCalculator({
   const [added, setAdded] = useState(false)
 
   useEffect(() => {
-    fetch('/api/dose/rules')
+    fetch(apiUrl('/api/dose/rules'))
       .then((res) => res.json())
       .then((json) => {
         if (json.data && json.data.length > 0) {

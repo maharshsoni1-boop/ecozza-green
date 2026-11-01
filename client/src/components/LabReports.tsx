@@ -57,12 +57,14 @@ const DEFAULT_BATCHES: Batch[] = [
   },
 ]
 
+import { apiUrl } from '@/lib/api'
+
 export function LabReports() {
   const [batches, setBatches] = useState<Batch[]>(DEFAULT_BATCHES)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetch('/api/batches')
+    fetch(apiUrl('/api/batches'))
       .then((res) => res.json())
       .then((json) => {
         if (json.data && json.data.length > 0) {

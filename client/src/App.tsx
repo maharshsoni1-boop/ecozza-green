@@ -87,6 +87,8 @@ const MOCK_PRODUCTS: Product[] = [
   },
 ]
 
+import { apiUrl } from '@/lib/api'
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'shop' | 'calculator' | 'how-to-use' | 'track' | 'lab' | 'b2b' | 'why' | 'about'>('shop')
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS)
@@ -97,7 +99,7 @@ export default function App() {
 
   // Fetch real products from server
   useEffect(() => {
-    fetch('/api/products')
+    fetch(apiUrl('/api/products'))
       .then((res) => res.json())
       .then((json) => {
         if (json.data && json.data.length > 0) {

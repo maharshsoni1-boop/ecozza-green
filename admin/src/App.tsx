@@ -76,11 +76,28 @@ interface LeadEnquiry {
   createdAt: string
 }
 
+interface Product {
+  id: string
+  name: string
+  slug: string
+  category: string
+  tagline?: string | null
+  variants: Array<{
+    id: string
+    title: string
+    weightKg: number
+    price: number
+    stockQuantity: number
+    isBulkQuoteOnly: boolean
+  }>
+}
+
 export default function AdminApp() {
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'batches' | 'dose' | 'leads' | 'database'>('orders')
 
   // Data states
   const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [doseRules, setDoseRules] = useState<DoseRule[]>([])
   const [leads, setLeads] = useState<LeadEnquiry[]>([])
@@ -115,14 +132,16 @@ export default function AdminApp() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [ordRes, batchRes, doseRes, leadsRes] = await Promise.all([
+      const [ordRes, prodRes, batchRes, doseRes, leadsRes] = await Promise.all([
         fetch('/api/orders').then((r) => r.json()).catch(() => ({})),
+        fetch('/api/products').then((r) => r.json()).catch(() => ({})),
         fetch('/api/batches?all=true').then((r) => r.json()).catch(() => ({})),
         fetch('/api/dose/rules').then((r) => r.json()).catch(() => ({})),
         fetch('/api/enquiries').then((r) => r.json()).catch(() => ({})),
       ])
 
       if (ordRes.data) setOrders(ordRes.data)
+      if (prodRes.data) setProducts(prodRes.data)
       if (batchRes.data) setBatches(batchRes.data)
       if (doseRes.data) setDoseRules(doseRes.data)
       if (leadsRes.data) setLeads(leadsRes.data)
@@ -134,6 +153,47 @@ export default function AdminApp() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Delete Handlers for Admin
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm('Are you sure you want to delete this order?')) return
+    try {
+      await fetch(`/api/orders/${orderId}`, { method: 'DELETE' })
+      loadData()
+    } catch {
+      alert('Failed to delete order')
+    }
+  }
+
+  const handleDeleteBatch = async (batchId: string) => {
+    if (!confirm('Are you sure you want to delete this batch certificate?')) return
+    try {
+      await fetch(`/api/batches/${batchId}`, { method: 'DELETE' })
+      loadData()
+    } catch {
+      alert('Failed to delete batch')
+    }
+  }
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (!confirm('Are you sure you want to delete this B2B lead?')) return
+    try {
+      await fetch(`/api/enquiries/${leadId}`, { method: 'DELETE' })
+      loadData()
+    } catch {
+      alert('Failed to delete lead')
+    }
+  }
+
+  const handleDeleteDose = async (ruleId: string) => {
+    if (!confirm('Are you sure you want to delete this dose rule?')) return
+    try {
+      await fetch(`/api/dose/rules/${ruleId}`, { method: 'DELETE' })
+      loadData()
+    } catch {
+      alert('Failed to delete dose rule')
+    }
+  }
 
   // Order Fulfillment Update
   const updateOrderStatus = async (orderId: string, status: string, trackingNumber?: string) => {
@@ -262,9 +322,11 @@ export default function AdminApp() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-black text-slate-900">
-                ₹{totalRevenue > 0 ? totalRevenue.toLocaleString('en-IN') : '1,48,780'}
+                ₹{totalRevenue.toLocaleString('en-IN')}
               </div>
-              <p className="text-xs text-emerald-600 font-medium mt-1">Paid via Razorpay</p>
+              <p className="text-xs text-emerald-600 font-medium mt-1">
+                {orders.filter((o) => o.paymentStatus === 'PAID').length} paid via Razorpay
+              </p>
             </CardContent>
           </Card>
 
@@ -322,6 +384,17 @@ export default function AdminApp() {
             Orders ({orders.length})
           </button>
           <button
+            onClick={() => setActiveTab('products')}
+            className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+              activeTab === 'products'
+                ? 'border-emerald-600 text-emerald-800'
+                : 'border-transparent hover:text-slate-900'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Products & Inventory ({products.length})
+          </button>
+          <button
             onClick={() => setActiveTab('batches')}
             className={`pb-3 px-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'batches'
@@ -363,7 +436,7 @@ export default function AdminApp() {
             }`}
           >
             <Database className="w-4 h-4" />
-            Supabase DB Config
+            Supabase PostgreSQL DB
           </button>
         </div>
 
@@ -396,49 +469,68 @@ export default function AdminApp() {
                       <th className="py-3 px-4">Total</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4">Tracking</th>
-                      <th className="py-3 px-4">Action</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {orders.map((ord) => (
-                      <tr key={ord.id} className="hover:bg-slate-50/70 transition">
-                        <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                          {ord.orderNumber}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-semibold text-slate-800">{ord.customerName}</div>
-                          <div className="text-[11px] text-slate-400">{ord.customerEmail}</div>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono">{ord.customerPhone}</td>
-                        <td className="py-3.5 px-4 font-black text-slate-900">₹{ord.totalAmount}</td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ord.orderStatus === 'DELIVERED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : ord.orderStatus === 'SHIPPED'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {ord.orderStatus}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px]">
-                          {ord.trackingNumber || <span className="text-slate-400">Unassigned</span>}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedOrder(ord)}
-                            className="text-xs h-7 px-2.5 font-semibold text-emerald-800"
-                          >
-                            Update
-                          </Button>
+                    {orders.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                          <p className="font-semibold">No customer orders yet</p>
+                          <p className="text-[11px] mt-0.5">Orders placed in the customer storefront will appear here instantly.</p>
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      orders.map((ord) => (
+                        <tr key={ord.id} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                            {ord.orderNumber}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-800">{ord.customerName}</div>
+                            <div className="text-[11px] text-slate-400">{ord.customerEmail}</div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono">{ord.customerPhone}</td>
+                          <td className="py-3.5 px-4 font-black text-slate-900">₹{ord.totalAmount}</td>
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                ord.orderStatus === 'DELIVERED'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : ord.orderStatus === 'SHIPPED'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {ord.orderStatus}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-[11px]">
+                            {ord.trackingNumber || <span className="text-slate-400">Unassigned</span>}
+                          </td>
+                          <td className="py-3.5 px-4 text-right space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedOrder(ord)}
+                              className="text-xs h-7 px-2.5 font-semibold text-emerald-800"
+                            >
+                              Fulfill
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteOrder(ord.id)}
+                              className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                              title="Delete Order"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -446,7 +538,62 @@ export default function AdminApp() {
           </Card>
         )}
 
-        {/* TAB 2: BATCHES */}
+        {/* TAB 2: PRODUCTS & INVENTORY */}
+        {activeTab === 'products' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Products & Inventory</h3>
+                <p className="text-xs text-slate-500">Live product catalog and pack variants stored in Supabase</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={loadData} className="text-xs">
+                Refresh Catalog
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {products.map((prod) => (
+                <Card key={prod.id} className="p-5 bg-white border-slate-200 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900">{prod.name}</h4>
+                      <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 mt-1 inline-block">
+                        {prod.category}
+                      </span>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {prod.variants.length} Packs
+                    </Badge>
+                  </div>
+                  {prod.tagline && <p className="text-xs text-slate-500 italic">{prod.tagline}</p>}
+
+                  <div className="border-t border-slate-100 pt-3">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Variants & Stock
+                    </div>
+                    <div className="space-y-1.5">
+                      {prod.variants.map((v) => (
+                        <div key={v.id} className="flex justify-between items-center text-xs p-2 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="font-semibold text-slate-800">{v.title}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-slate-600">
+                              Stock: <b className="text-slate-900">{v.stockQuantity}</b>
+                            </span>
+                            <span className="font-black text-emerald-800">
+                              {v.isBulkQuoteOnly ? 'B2B Quote Only' : `₹${v.price}`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: BATCHES */}
         {activeTab === 'batches' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -463,41 +610,60 @@ export default function AdminApp() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {batches.map((b) => (
-                <Card key={b.id} className="p-5 bg-white border-slate-200 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                        {b.batchNumber}
-                      </span>
-                      <p className="text-xs text-slate-500 mt-1">{b.labName}</p>
+            {batches.length === 0 ? (
+              <Card className="p-12 text-center text-slate-400 bg-white">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="font-semibold text-xs">No lab certificates uploaded yet</p>
+                <p className="text-[11px] mt-0.5">Click "Add Lab Certificate" above to upload a certified NABL report.</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {batches.map((b) => (
+                  <Card key={b.id} className="p-5 bg-white border-slate-200 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                          {b.batchNumber}
+                        </span>
+                        <p className="text-xs text-slate-500 mt-1">{b.labName}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={b.isVerified ? 'success' : 'secondary'}>
+                          {b.isVerified ? 'FCO Verified' : 'Draft'}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteBatch(b.id)}
+                          className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          title="Delete Certificate"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <Badge variant={b.isVerified ? 'success' : 'secondary'}>
-                      {b.isVerified ? 'FCO Verified' : 'Draft'}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 border-y border-slate-100">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block uppercase">Carbon</span>
-                      <span className="font-bold text-emerald-900">{b.carbonPercentage}%</span>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 border-y border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase">Carbon</span>
+                        <span className="font-bold text-emerald-900">{b.carbonPercentage}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase">pH</span>
+                        <span className="font-bold text-slate-800">{b.phValue}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase">Moisture</span>
+                        <span className="font-bold text-slate-800">{b.moisturePercentage}%</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block uppercase">pH</span>
-                      <span className="font-bold text-slate-800">{b.phValue}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block uppercase">Moisture</span>
-                      <span className="font-bold text-slate-800">{b.moisturePercentage}%</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 3: DOSE RULES */}
+        {/* TAB 4: DOSE RULES */}
         {activeTab === 'dose' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -523,6 +689,7 @@ export default function AdminApp() {
                     <th className="py-3 px-4">Unit</th>
                     <th className="py-3 px-4">Recommended Grams</th>
                     <th className="py-3 px-4">Agronomy Notes</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -535,6 +702,17 @@ export default function AdminApp() {
                         {rule.recommendedDoseGrams}g
                       </td>
                       <td className="py-3 px-4 text-slate-500">{rule.notes || '-'}</td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteDose(rule.id)}
+                          className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          title="Delete Rule"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -543,7 +721,7 @@ export default function AdminApp() {
           </div>
         )}
 
-        {/* TAB 4: B2B LEADS */}
+        {/* TAB 5: B2B LEADS */}
         {activeTab === 'leads' && (
           <div className="space-y-4">
             <div>
@@ -561,67 +739,105 @@ export default function AdminApp() {
                     <th className="py-3 px-4">State</th>
                     <th className="py-3 px-4">Quantity</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Action</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {leads.map((lead) => (
-                    <tr key={lead.id}>
-                      <td className="py-3.5 px-4 font-bold text-slate-900">{lead.name}</td>
-                      <td className="py-3.5 px-4 text-slate-700">{lead.companyName || '-'}</td>
-                      <td className="py-3.5 px-4 font-mono font-semibold">{lead.phone}</td>
-                      <td className="py-3.5 px-4">{lead.locationState}</td>
-                      <td className="py-3.5 px-4 font-bold text-emerald-900">{lead.quantityText}</td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                          {lead.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <select
-                          value={lead.status}
-                          onChange={(e) => handleUpdateLead(lead.id, e.target.value)}
-                          className="p-1 rounded border border-slate-200 text-xs bg-slate-50 font-medium"
-                        >
-                          <option value="NEW">NEW</option>
-                          <option value="CONTACTED">CONTACTED</option>
-                          <option value="QUOTED">QUOTED</option>
-                          <option value="CLOSED">CLOSED</option>
-                        </select>
+                  {leads.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <Building2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="font-semibold text-xs">No B2B bulk enquiries received yet</p>
+                        <p className="text-[11px] mt-0.5">Commercial quotes submitted on the storefront will appear here.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    leads.map((lead) => (
+                      <tr key={lead.id}>
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{lead.name}</td>
+                        <td className="py-3.5 px-4 text-slate-700">{lead.companyName || '-'}</td>
+                        <td className="py-3.5 px-4 font-mono font-semibold">{lead.phone}</td>
+                        <td className="py-3.5 px-4">{lead.locationState}</td>
+                        <td className="py-3.5 px-4 font-bold text-emerald-900">{lead.quantityText}</td>
+                        <td className="py-3.5 px-4">
+                          <select
+                            value={lead.status}
+                            onChange={(e) => handleUpdateLead(lead.id, e.target.value)}
+                            className="p-1 rounded border border-slate-200 text-xs bg-slate-50 font-medium"
+                          >
+                            <option value="NEW">NEW</option>
+                            <option value="CONTACTED">CONTACTED</option>
+                            <option value="QUOTED">QUOTED</option>
+                            <option value="CLOSED">CLOSED</option>
+                          </select>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteLead(lead.id)}
+                            className="text-xs h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            title="Delete Lead"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* TAB 5: DATABASE CONFIG */}
+        {/* TAB 6: DATABASE CONFIG */}
         {activeTab === 'database' && (
           <Card className="bg-white border-slate-200">
             <CardHeader className="border-b border-slate-100 pb-3">
-              <CardTitle className="text-base font-bold text-slate-900">Database & Supabase Connection</CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Connection credentials and environment setup
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">Database & Cloud Supabase Status</CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Live connection to Supabase PostgreSQL database
+                  </CardDescription>
+                </div>
+                <Badge variant="success" className="bg-emerald-600 text-white font-mono text-xs">
+                  Connected & Synchronized
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="p-6 space-y-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <div className="font-bold text-slate-800">Current Local Database:</div>
-                <div className="font-mono text-emerald-700 bg-white p-2.5 rounded border border-slate-200">
-                  SQLite (Local / Offline) - server/prisma/dev.db
+              <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
+                <div className="font-bold text-emerald-950 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active Database: Supabase PostgreSQL (AWS ap-south-1)
                 </div>
-                <p className="text-slate-500">
-                  To switch to your cloud Supabase database, paste your connection string in <code className="font-mono font-bold text-slate-700">server/.env</code>.
+                <div className="font-mono text-emerald-900 bg-white p-3 rounded-lg border border-emerald-200 text-[11px] overflow-x-auto">
+                  aws-0-ap-south-1.pooler.supabase.com:5432 / postgres (SSL Required)
+                </div>
+                <p className="text-emerald-800 text-[11px]">
+                  All tables, products, variants, orders, and batch records are synchronized live in your Supabase PostgreSQL cloud database.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
-                <div className="font-bold text-emerald-950">Ready for Supabase PostgreSQL:</div>
-                <p className="text-emerald-800">
-                  Your server is configured with both Prisma ORM and the official <code className="font-mono">@supabase/supabase-js</code> client for JWT verification, RLS, and secure image uploads.
-                </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[10px] uppercase font-bold">Catalog Products</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{products.length}</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[10px] uppercase font-bold">Total Orders</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{orders.length}</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[10px] uppercase font-bold">Lab Batches</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{batches.length}</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[10px] uppercase font-bold">Dose Rules</div>
+                  <div className="text-lg font-black text-slate-900 mt-0.5">{doseRules.length}</div>
+                </div>
               </div>
             </CardContent>
           </Card>

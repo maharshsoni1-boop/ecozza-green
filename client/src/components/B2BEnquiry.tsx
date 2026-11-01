@@ -10,6 +10,7 @@ import {
   Send,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { apiUrl } from '@/lib/api'
 
 export function B2BEnquiry() {
   const [formData, setFormData] = useState({
@@ -35,7 +36,7 @@ export function B2BEnquiry() {
     setError(null)
 
     try {
-      const res = await fetch('/api/enquiries', {
+      const res = await fetch(apiUrl('/api/enquiries'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

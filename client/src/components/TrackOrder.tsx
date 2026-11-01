@@ -11,6 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { apiUrl } from '@/lib/api'
 
 export function TrackOrder() {
   const [identifier, setIdentifier] = useState('')
@@ -27,7 +28,7 @@ export function TrackOrder() {
     setResult(null)
 
     try {
-      const res = await fetch(`/api/track/${encodeURIComponent(identifier.trim())}`)
+      const res = await fetch(apiUrl(`/api/track/${encodeURIComponent(identifier.trim())}`))
       const json = await res.json()
       if (json.success) {
         setResult(json.data)
