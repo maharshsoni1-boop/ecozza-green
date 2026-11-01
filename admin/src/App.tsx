@@ -19,10 +19,12 @@ import {
   X,
   FileCheck2,
   Check,
+  AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { apiUrl } from '@/lib/api'
 
 interface Order {
   id: string
@@ -128,23 +130,31 @@ export default function AdminApp() {
     notes: '',
   })
 
+  // Connection state
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null)
+
   // Load all admin data
   const loadData = async () => {
     setLoading(true)
     try {
       const [ordRes, prodRes, batchRes, doseRes, leadsRes] = await Promise.all([
-        fetch('/api/orders').then((r) => r.json()).catch(() => ({})),
-        fetch('/api/products').then((r) => r.json()).catch(() => ({})),
-        fetch('/api/batches?all=true').then((r) => r.json()).catch(() => ({})),
-        fetch('/api/dose/rules').then((r) => r.json()).catch(() => ({})),
-        fetch('/api/enquiries').then((r) => r.json()).catch(() => ({})),
+        fetch(apiUrl('/api/orders')).then((r) => r.json()).catch(() => ({})),
+        fetch(apiUrl('/api/products')).then((r) => r.json()).catch(() => ({})),
+        fetch(apiUrl('/api/batches?all=true')).then((r) => r.json()).catch(() => ({})),
+        fetch(apiUrl('/api/dose/rules')).then((r) => r.json()).catch(() => ({})),
+        fetch(apiUrl('/api/enquiries')).then((r) => r.json()).catch(() => ({})),
       ])
+
+      const isConnected = Boolean(ordRes.data || prodRes.data || batchRes.data)
+      setApiOnline(isConnected)
 
       if (ordRes.data) setOrders(ordRes.data)
       if (prodRes.data) setProducts(prodRes.data)
       if (batchRes.data) setBatches(batchRes.data)
       if (doseRes.data) setDoseRules(doseRes.data)
       if (leadsRes.data) setLeads(leadsRes.data)
+    } catch {
+      setApiOnline(false)
     } finally {
       setLoading(false)
     }
@@ -158,7 +168,7 @@ export default function AdminApp() {
   const handleDeleteOrder = async (orderId: string) => {
     if (!confirm('Are you sure you want to delete this order?')) return
     try {
-      await fetch(`/api/orders/${orderId}`, { method: 'DELETE' })
+      await fetch(apiUrl(`/api/orders/${orderId}`), { method: 'DELETE' })
       loadData()
     } catch {
       alert('Failed to delete order')
@@ -168,7 +178,7 @@ export default function AdminApp() {
   const handleDeleteBatch = async (batchId: string) => {
     if (!confirm('Are you sure you want to delete this batch certificate?')) return
     try {
-      await fetch(`/api/batches/${batchId}`, { method: 'DELETE' })
+      await fetch(apiUrl(`/api/batches/${batchId}`), { method: 'DELETE' })
       loadData()
     } catch {
       alert('Failed to delete batch')
@@ -178,7 +188,7 @@ export default function AdminApp() {
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this B2B lead?')) return
     try {
-      await fetch(`/api/enquiries/${leadId}`, { method: 'DELETE' })
+      await fetch(apiUrl(`/api/enquiries/${leadId}`), { method: 'DELETE' })
       loadData()
     } catch {
       alert('Failed to delete lead')
@@ -188,7 +198,7 @@ export default function AdminApp() {
   const handleDeleteDose = async (ruleId: string) => {
     if (!confirm('Are you sure you want to delete this dose rule?')) return
     try {
-      await fetch(`/api/dose/rules/${ruleId}`, { method: 'DELETE' })
+      await fetch(apiUrl(`/api/dose/rules/${ruleId}`), { method: 'DELETE' })
       loadData()
     } catch {
       alert('Failed to delete dose rule')
@@ -198,7 +208,7 @@ export default function AdminApp() {
   // Order Fulfillment Update
   const updateOrderStatus = async (orderId: string, status: string, trackingNumber?: string) => {
     try {
-      await fetch(`/api/orders/${orderId}/status`, {
+      await fetch(apiUrl(`/api/orders/${orderId}/status`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,7 +228,7 @@ export default function AdminApp() {
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await fetch('/api/batches', {
+      await fetch(apiUrl('/api/batches'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newBatch),
@@ -244,7 +254,7 @@ export default function AdminApp() {
   const handleCreateDoseRule = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await fetch('/api/dose/rules', {
+      await fetch(apiUrl('/api/dose/rules'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDose),
@@ -266,7 +276,7 @@ export default function AdminApp() {
   // Update Lead Status
   const handleUpdateLead = async (leadId: string, status: string) => {
     try {
-      await fetch(`/api/enquiries/${leadId}/status`, {
+      await fetch(apiUrl(`/api/enquiries/${leadId}/status`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -302,12 +312,37 @@ export default function AdminApp() {
             <span>Customer Store</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
-          <div className="flex items-center gap-2 text-emerald-400 font-mono">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>API Server: 5000</span>
+          <div className="flex items-center gap-2 font-mono">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                apiOnline === true
+                  ? 'bg-emerald-400 animate-pulse'
+                  : apiOnline === false
+                  ? 'bg-rose-400'
+                  : 'bg-amber-400'
+              }`}
+            ></span>
+            <span className={apiOnline === true ? 'text-emerald-400' : apiOnline === false ? 'text-rose-400' : 'text-amber-400'}>
+              {apiOnline === true ? 'API Connected' : apiOnline === false ? 'API Offline' : 'Connecting...'}
+            </span>
           </div>
         </div>
       </header>
+
+      {/* Backend Offline Warning Banner */}
+      {apiOnline === false && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-3 shadow-inner">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Backend Not Connected (404 / Offline):</strong> The admin console cannot reach the Express backend server. If deployed to Vercel/Netlify, make sure to add <code>VITE_API_URL="https://your-backend-api.onrender.com"</code> in your hosting Environment Variables.
+            </span>
+          </div>
+          <Button size="sm" variant="outline" onClick={loadData} className="h-7 text-xs bg-white border-amber-300 font-bold hover:bg-amber-100">
+            Retry Connection
+          </Button>
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-6 py-8 w-full flex-1">
