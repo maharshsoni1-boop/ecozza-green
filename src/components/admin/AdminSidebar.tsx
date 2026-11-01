@@ -50,13 +50,13 @@ export function AdminSidebar() {
       {/* Brand Header */}
       <div className="p-6 border-b border-[#28302C]">
         <div className="flex items-center gap-3">
-          <div className="relative h-10 w-12 bg-white/10 rounded-lg p-1 flex items-center justify-center border border-white/10 shrink-0">
+          <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#2E6B47] shadow-xs">
             <Image
-              src="/logo.png"
+              src="/icon-circle.png"
               alt="Ecozza Green Logo"
-              width={100}
-              height={70}
-              className="h-8 w-auto object-contain brightness-110"
+              width={36}
+              height={36}
+              className="w-9 h-9 object-contain"
             />
           </div>
           <div>

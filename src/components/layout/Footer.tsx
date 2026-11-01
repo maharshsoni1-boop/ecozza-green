@@ -13,13 +13,13 @@ export function Footer() {
           {/* Brand Col */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="relative h-12 w-16 bg-white/10 backdrop-blur-xs rounded-xl p-1 flex items-center justify-center border border-white/10 shrink-0">
+              <div className="relative w-11 h-11 rounded-full overflow-hidden shadow-md shrink-0 border border-[#2E6B47]">
                 <Image
-                  src="/logo.png"
+                  src="/icon-circle.png"
                   alt="Ecozza Green Logo"
-                  width={120}
-                  height={85}
-                  className="h-10 w-auto object-contain brightness-110"
+                  width={44}
+                  height={44}
+                  className="w-11 h-11 object-contain"
                 />
               </div>
               <span className="text-2xl font-bold font-heading text-white tracking-tight">

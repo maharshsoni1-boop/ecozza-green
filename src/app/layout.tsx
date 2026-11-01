@@ -51,6 +51,16 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon-circle.png", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/icon-circle.png",
+  },
 };
 
 export default function RootLayout({
@@ -63,7 +73,7 @@ export default function RootLayout({
     "@type": "Organization",
     name: "Ecozza Green",
     url: "https://ecozzagreen.in",
-    logo: "https://ecozzagreen.in/images/ecozza-green-logo.png",
+    logo: "https://ecozzagreen.in/logo.png",
     description:
       "Ecozza Green manufactures high-grade granular biochar soil conditioners in Gujarat, India to improve water and nutrient retention.",
     address: {
@@ -86,6 +96,9 @@ export default function RootLayout({
       className={`${fontHeading.variable} ${fontBody.variable} scroll-smooth`}
     >
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon-circle.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon-circle.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

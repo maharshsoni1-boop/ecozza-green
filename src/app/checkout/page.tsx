@@ -17,13 +17,13 @@ export default function CheckoutPage() {
         {/* Breadcrumb & Security strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E0D6]">
           <div className="flex items-center gap-4">
-            <div className="relative h-12 w-16 shrink-0 hidden sm:flex items-center justify-center">
+            <div className="relative w-12 h-12 shrink-0 hidden sm:flex items-center justify-center rounded-full overflow-hidden shadow-sm border border-[#2E6B47]/30">
               <Image
-                src="/logo.png"
+                src="/icon-circle.png"
                 alt="Ecozza Green"
-                width={120}
-                height={85}
-                className="h-12 w-auto object-contain"
+                width={48}
+                height={48}
+                className="w-12 h-12 object-contain"
                 priority
               />
             </div>

@@ -130,13 +130,13 @@ export default async function HomePage() {
                 />
 
                 {/* Floating Official Brand Badge */}
-                <div className="absolute top-4 right-4 bg-[#121614]/85 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/20 flex items-center gap-2 shadow-lg z-10">
+                <div className="absolute top-4 right-4 bg-[#121614]/85 backdrop-blur-md pl-1.5 pr-3 py-1 rounded-full border border-white/20 flex items-center gap-2 shadow-lg z-10">
                   <Image
-                    src="/logo.png"
+                    src="/icon-circle.png"
                     alt="Ecozza Green Brand Mark"
-                    width={48}
-                    height={34}
-                    className="h-6 w-auto object-contain brightness-110"
+                    width={24}
+                    height={24}
+                    className="w-6 h-6 rounded-full object-contain"
                   />
                   <span className="text-[11px] font-bold text-white tracking-wide">Official Brand</span>
                 </div>

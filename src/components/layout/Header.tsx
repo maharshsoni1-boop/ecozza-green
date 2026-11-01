@@ -62,13 +62,13 @@ export function Header() {
           <div className="flex items-center justify-between h-20">
             {/* Brand Logo strictly "Ecozza Green" */}
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="relative h-12 w-16 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <div className="relative w-11 h-11 shrink-0 rounded-full overflow-hidden shadow-md group-hover:scale-105 transition-transform border border-[#2E6B47]/40">
                 <Image
-                  src="/logo.png"
+                  src="/icon-circle.png"
                   alt="Ecozza Green Logo"
-                  width={140}
-                  height={99}
-                  className="h-12 w-auto object-contain"
+                  width={44}
+                  height={44}
+                  className="w-11 h-11 object-contain"
                   priority
                 />
               </div>
