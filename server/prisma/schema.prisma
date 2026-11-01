@@ -1,6 +1,6 @@
 // Ecozza Green Prisma Schema
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

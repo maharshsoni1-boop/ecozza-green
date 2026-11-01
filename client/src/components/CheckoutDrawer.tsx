@@ -131,35 +131,90 @@ export function CheckoutDrawer({
 
       const createdOrder = json.data
 
-      // 2. Initialize simulated Razorpay checkout
+      // 2. Initialize Razorpay order on server
       const rzpRes = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId: createdOrder.id }),
       })
       const rzpJson = await rzpRes.json()
+      if (!rzpJson.success) throw new Error(rzpJson.error || 'Failed to initialize payment')
 
-      // 3. Confirm payment verification
-      const verifyRes = await fetch('/api/razorpay/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpayOrderId: rzpJson.data.razorpayOrderId,
-          razorpayPaymentId: `pay_rzp_${Date.now()}`,
-          razorpaySignature: 'simulated_sig',
-        }),
-      })
-      const verifyJson = await verifyRes.json()
+      const isLiveOrTestKey = rzpJson.data.keyId && !rzpJson.data.keyId.includes('mock')
 
-      setOrderResult({
-        ...createdOrder,
-        invoiceNumber: verifyJson.data.invoiceNumber,
-      })
-      setStep('success')
-      onClearCart()
+      if (isLiveOrTestKey && typeof (window as any).Razorpay !== 'undefined') {
+        // Real interactive Razorpay popup modal
+        const options = {
+          key: rzpJson.data.keyId,
+          amount: rzpJson.data.amount,
+          currency: rzpJson.data.currency || 'INR',
+          name: 'Ecozza Green',
+          description: `Biochar Order #${createdOrder.orderNumber}`,
+          image: '/logo.png',
+          order_id: rzpJson.data.razorpayOrderId,
+          handler: async function (response: any) {
+            try {
+              const verifyRes = await fetch('/api/razorpay/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                }),
+              })
+              const verifyJson = await verifyRes.json()
+              setOrderResult({
+                ...createdOrder,
+                invoiceNumber: verifyJson.data?.invoiceNumber || `INV-${createdOrder.orderNumber}`,
+              })
+              setStep('success')
+              onClearCart()
+            } catch (vErr: any) {
+              alert(`Verification failed: ${vErr.message}`)
+            } finally {
+              setIsPlacingOrder(false)
+            }
+          },
+          prefill: {
+            name: customerName,
+            email: customerEmail || 'customer@ecozza.green',
+            contact: customerPhone,
+          },
+          theme: {
+            color: '#15803d',
+          },
+          modal: {
+            ondismiss: function () {
+              setIsPlacingOrder(false)
+            },
+          },
+        }
+        const rzp = new (window as any).Razorpay(options)
+        rzp.open()
+      } else {
+        // Simulated / development payment verification
+        const verifyRes = await fetch('/api/razorpay/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpayOrderId: rzpJson.data.razorpayOrderId,
+            razorpayPaymentId: `pay_rzp_${Date.now()}`,
+            razorpaySignature: 'simulated_sig',
+          }),
+        })
+        const verifyJson = await verifyRes.json()
+
+        setOrderResult({
+          ...createdOrder,
+          invoiceNumber: verifyJson.data?.invoiceNumber || `INV-${createdOrder.orderNumber}`,
+        })
+        setStep('success')
+        onClearCart()
+        setIsPlacingOrder(false)
+      }
     } catch (err: any) {
       alert(`Order placement error: ${err.message}`)
-    } finally {
       setIsPlacingOrder(false)
     }
   }
