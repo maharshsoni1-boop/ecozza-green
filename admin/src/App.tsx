@@ -287,6 +287,26 @@ export default function AdminApp() {
     }
   }
 
+  // 1-Click Shiprocket AWB Generation
+  const handleShiprocketGenerate = async (orderId: string) => {
+    try {
+      setLoading(true)
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/shiprocket`), { method: 'POST' })
+      const json = await res.json()
+      if (json.success) {
+        alert(json.message)
+        setSelectedOrder(null)
+        loadData()
+      } else {
+        alert(json.error || 'Failed to generate Shiprocket shipment')
+      }
+    } catch {
+      alert('Failed to connect to shipping service')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const totalRevenue = orders.reduce((acc, o) => acc + (o.paymentStatus === 'PAID' ? o.totalAmount : 0), 0)
 
   return (
@@ -910,6 +930,21 @@ export default function AdminApp() {
                       {st}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Live Shiprocket Auto-Generation */}
+              <div className="pt-2 border-t border-slate-100">
+                <Button
+                  onClick={() => handleShiprocketGenerate(selectedOrder.id)}
+                  disabled={loading}
+                  className="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-2.5 text-xs flex items-center justify-center gap-2 mb-2"
+                >
+                  <Truck className="w-4 h-4" />
+                  Auto-Generate Live Shiprocket AWB
+                </Button>
+                <div className="text-center text-[10px] text-slate-400 font-medium">
+                  — or manually specify courier & tracking —
                 </div>
               </div>
 

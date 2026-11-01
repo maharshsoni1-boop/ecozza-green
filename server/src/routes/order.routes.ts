@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
+import { shippingService } from '../lib/shipping.js'
 
 const router = Router()
 
@@ -176,6 +177,42 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     res.json({ success: true, data: updated })
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to update order status', details: err.message })
+  }
+})
+
+// POST /api/orders/:id/shiprocket - Create live Shiprocket shipment & generate AWB
+router.post('/:id/shiprocket', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { orderItems: true },
+    })
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' })
+    }
+
+    const shipment = await shippingService.createShipment(order)
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: {
+        orderStatus: 'SHIPPED',
+        trackingNumber: shipment.trackingNumber,
+        carrierName: shipment.carrierName,
+        trackingUrl: shipment.trackingUrl,
+      },
+      include: { orderItems: true },
+    })
+
+    res.json({
+      success: true,
+      message: `Shipment created with ${shipment.carrierName}. AWB: ${shipment.trackingNumber}`,
+      data: updated,
+    })
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to create Shiprocket shipment', details: err.message })
   }
 })
 
