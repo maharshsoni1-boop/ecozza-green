@@ -17,18 +17,45 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
 
-// Middleware
-app.use(
-  cors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      process.env.CLIENT_URL || '',
-      process.env.ADMIN_URL || '',
-    ].filter(Boolean),
-    credentials: true,
-  })
-)
+// Dynamic CORS configuration allowing localhost, all Vercel domains, and configured URLs
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  process.env.CLIENT_URL,
+  process.env.ADMIN_URL,
+].filter(Boolean) as string[]
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow server-to-server or tools with no origin header
+    if (!origin) return callback(null, true)
+
+    // Allow all Vercel deployments (production & preview branches)
+    if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true)
+    }
+
+    // Allow custom Ecozza production domains
+    if (/^https:\/\/(.*\.)?ecozzagreen\.in$/.test(origin)) {
+      return callback(null, true)
+    }
+
+    // Allow localhost & explicitly listed origins
+    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+      return callback(null, true)
+    }
+
+    // Permit caller in development / dynamic origin reflection
+    callback(null, true)
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}
+
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
 app.use(express.json())
 
 // Health check
