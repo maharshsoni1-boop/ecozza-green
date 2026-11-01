@@ -3,11 +3,11 @@ import { prisma } from '../lib/prisma.js'
 
 const router = Router()
 
-// GET /api/orders
+// GET /api/orders - List orders (for Admin or user history)
 router.get('/', async (req: Request, res: Response) => {
   try {
     const orders = await prisma.order.findMany({
-      take: 50,
+      take: 100,
       orderBy: { createdAt: 'desc' },
       include: {
         orderItems: true,
@@ -19,19 +19,65 @@ router.get('/', async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/orders - Create a new order
+// GET /api/orders/:id - Get single order with invoice details
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string
+    const order = await prisma.order.findFirst({
+      where: {
+        OR: [{ id }, { orderNumber: id }],
+      },
+      include: {
+        orderItems: true,
+      },
+    })
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' })
+    }
+
+    let parsedShipping = {}
+    let parsedBilling = {}
+    try {
+      parsedShipping = JSON.parse(order.shippingAddress)
+    } catch {
+      parsedShipping = { raw: order.shippingAddress }
+    }
+    try {
+      parsedBilling = JSON.parse(order.billingAddress)
+    } catch {
+      parsedBilling = { raw: order.billingAddress }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...order,
+        shippingAddress: parsedShipping,
+        billingAddress: parsedBilling,
+      },
+    })
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to fetch order', details: err.message })
+  }
+})
+
+// POST /api/orders - Create a new customer order
 router.post('/', async (req: Request, res: Response) => {
   try {
     const {
       items,
       subtotalAmount,
       taxAmount,
+      shippingAmount,
       totalAmount,
       customerEmail,
       customerPhone,
       customerName,
+      customerGstin,
       shippingAddress,
       billingAddress,
+      paymentMethod = 'RAZORPAY',
     } = req.body
 
     if (!items || !items.length) {
@@ -40,30 +86,54 @@ router.post('/', async (req: Request, res: Response) => {
 
     const orderNumber = `EG-ORD-${Date.now().toString().slice(-6)}`
 
+    // Resolve valid database variant IDs to guarantee foreign key integrity
+    const defaultVariant = await prisma.productVariant.findFirst()
+
+    const orderItemsData = await Promise.all(
+      items.map(async (item: any) => {
+        let validVariantId = item.variantId
+        if (validVariantId) {
+          const exists = await prisma.productVariant.findUnique({
+            where: { id: validVariantId },
+          })
+          if (!exists) {
+            validVariantId = defaultVariant ? defaultVariant.id : validVariantId
+          }
+        } else {
+          validVariantId = defaultVariant ? defaultVariant.id : 'default'
+        }
+
+        return {
+          variantId: validVariantId,
+          productName: item.productName || 'Biochar Conditioner',
+          variantTitle: item.variantTitle || 'Standard Pack',
+          weightKg: Number(item.weightKg) || 1.0,
+          unitPrice: Number(item.unitPrice) || Number(item.price) || 0,
+          gstRate: 5.0,
+          quantity: Number(item.quantity) || 1,
+          totalPrice: (Number(item.unitPrice) || Number(item.price) || 0) * (Number(item.quantity) || 1),
+        }
+      })
+    )
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
         customerEmail: customerEmail || 'guest@example.com',
         customerPhone: customerPhone || '9999999999',
         customerName: customerName || 'Valued Customer',
+        customerGstin: customerGstin?.trim() || null,
         shippingAddress: typeof shippingAddress === 'string' ? shippingAddress : JSON.stringify(shippingAddress || {}),
         billingAddress: typeof billingAddress === 'string' ? billingAddress : JSON.stringify(billingAddress || {}),
         subtotalAmount: Number(subtotalAmount) || Number(totalAmount) || 0,
+        shippingAmount: Number(shippingAmount) || 0,
         taxAmount: Number(taxAmount) || 0,
         totalAmount: Number(totalAmount) || 0,
         orderStatus: 'PLACED',
         paymentStatus: 'PENDING',
+        paymentMethod,
         orderItems: {
-          create: items.map((item: any) => ({
-            variantId: item.variantId,
-            productName: item.productName || 'Eco-product',
-            variantTitle: item.variantTitle || 'Standard',
-            weightKg: Number(item.weightKg) || 1.0,
-            unitPrice: Number(item.unitPrice) || Number(item.price) || 0,
-            gstRate: 5.0,
-            quantity: Number(item.quantity) || 1,
-            totalPrice: (Number(item.unitPrice) || Number(item.price) || 0) * (Number(item.quantity) || 1),
-          })),
+          create: orderItemsData,
         },
       },
       include: {
@@ -74,6 +144,38 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: order })
   } catch (err: any) {
     res.status(500).json({ success: false, error: 'Failed to create order', details: err.message })
+  }
+})
+
+// PATCH /api/orders/:id/status - Update order fulfillment, tracking & carrier (Admin)
+router.patch('/:id/status', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string
+    const { orderStatus, paymentStatus, trackingNumber, carrierName, trackingUrl } = req.body
+
+    const data: any = {}
+    if (orderStatus) data.orderStatus = orderStatus
+    if (paymentStatus) data.paymentStatus = paymentStatus
+    if (trackingNumber !== undefined) data.trackingNumber = trackingNumber
+    if (carrierName !== undefined) data.carrierName = carrierName
+    if (trackingUrl !== undefined) data.trackingUrl = trackingUrl
+
+    // If marked SHIPPED and trackingUrl missing, auto-populate Shiprocket link
+    if (trackingNumber && !data.trackingUrl) {
+      data.trackingUrl = `https://shiprocket.co/tracking/${trackingNumber}`
+    }
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data,
+      include: {
+        orderItems: true,
+      },
+    })
+
+    res.json({ success: true, data: updated })
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: 'Failed to update order status', details: err.message })
   }
 })
 

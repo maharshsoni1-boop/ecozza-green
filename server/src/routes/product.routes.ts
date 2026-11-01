@@ -48,6 +48,15 @@ router.get('/', async (req: Request, res: Response) => {
       } catch {
         parsedImages = p.images ? [p.images] : []
       }
+      if (!parsedImages.length) {
+        if (p.slug.includes('farm') || p.slug.includes('granule')) {
+          parsedImages = ['/images/product-biochar.jpg']
+        } else if (p.slug.includes('inoculat') || p.slug.includes('nursery')) {
+          parsedImages = ['/images/product-inoculated.jpg']
+        } else {
+          parsedImages = ['/images/product-potting.jpg']
+        }
+      }
       return {
         ...p,
         imagesList: parsedImages,
