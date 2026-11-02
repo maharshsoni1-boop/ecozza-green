@@ -14,7 +14,7 @@ export interface ShippingRateResult {
 
 export interface ShippingProvider {
   getShippingRate(pincode: string, weightKg: number, subtotal: number): Promise<ShippingRateResult>
-  createShipment(order: any): Promise<{ trackingNumber: string; carrierName: string; trackingUrl: string }>
+  createShipment(order: any): Promise<{ trackingNumber: string; carrierName: string; trackingUrl: string; shipmentId?: string | number; orderId?: string | number } | null>
   trackShipment?(trackingNumber: string): Promise<any>
 }
 
@@ -151,12 +151,23 @@ class ShiprocketShippingProvider implements ShippingProvider {
     }
   }
 
-  async createShipment(order: any): Promise<{ trackingNumber: string; carrierName: string; trackingUrl: string }> {
-    const token = await this.getToken()
-    const pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '385001'
+  async createShipment(order: any): Promise<{ trackingNumber: string; carrierName: string; trackingUrl: string; shipmentId?: string | number; orderId?: string | number } | null> {
+    const maxRetries = 2
+    let attempt = 0
 
-    if (token) {
+    while (attempt <= maxRetries) {
+      attempt++
       try {
+        const token = await this.getToken()
+        if (!token) {
+          console.error('[Shiprocket] Cannot create shipment: Authentication token unavailable (Attempt ' + attempt + ')')
+          if (attempt <= maxRetries) {
+            await new Promise((r) => setTimeout(r, 1500))
+            continue
+          }
+          return null
+        }
+
         let shippingAddress: any = {}
         try {
           shippingAddress = typeof order.shippingAddress === 'string' ? JSON.parse(order.shippingAddress) : (order.shippingAddress || {})
@@ -174,10 +185,24 @@ class ShiprocketShippingProvider implements ShippingProvider {
 
         const nameParts = (order.customerName || 'Customer').trim().split(/\s+/)
         const firstName = nameParts[0] || 'Customer'
-        const lastName = nameParts.slice(1).join(' ') || ''
+        const lastName = nameParts.slice(1).join(' ') || '.'
         const cleanPhone = (order.customerPhone || '9876543210').replace(/\D/g, '').slice(-10)
 
-        // Create Custom Adhoc Shipment in Shiprocket
+        // Sanitize state: if state is 'India' or missing, derive from pincode or city
+        let stateName = (shippingAddress.state || '').trim()
+        if (!stateName || stateName.toLowerCase() === 'india') {
+          const pin = (shippingAddress.postalCode || shippingAddress.pincode || '385001').toString()
+          if (pin.startsWith('38') || pin.startsWith('39')) stateName = 'Gujarat'
+          else if (pin.startsWith('82') || pin.startsWith('83')) stateName = 'Jharkhand'
+          else if (pin.startsWith('11')) stateName = 'Delhi'
+          else if (pin.startsWith('40') || pin.startsWith('41') || pin.startsWith('42')) stateName = 'Maharashtra'
+          else if (pin.startsWith('56')) stateName = 'Karnataka'
+          else stateName = 'Gujarat'
+        }
+
+        const rawAddress = (shippingAddress.addressLine1 || shippingAddress.addressLine || 'Plot 1, Ecozza Green Delivery').trim()
+        const billingAddress = rawAddress.length >= 10 ? rawAddress : `${rawAddress}, Ecozza Farm Delivery`
+
         const payload = {
           order_id: order.orderNumber,
           order_date: new Date(order.createdAt || Date.now()).toISOString().split('T')[0],
@@ -185,11 +210,11 @@ class ShiprocketShippingProvider implements ShippingProvider {
           channel_id: '',
           billing_customer_name: firstName,
           billing_last_name: lastName,
-          billing_address: shippingAddress.addressLine1 || shippingAddress.addressLine || 'Plot 1, Ecozza Green Delivery',
+          billing_address: billingAddress,
           billing_address_2: shippingAddress.addressLine2 || (shippingAddress.landmark ? `Near: ${shippingAddress.landmark}` : ''),
           billing_city: shippingAddress.city || 'Palanpur',
           billing_pincode: shippingAddress.postalCode || shippingAddress.pincode || '385001',
-          billing_state: shippingAddress.state || 'Gujarat',
+          billing_state: stateName,
           billing_country: 'India',
           billing_email: order.customerEmail || 'care@ecozzagreen.in',
           billing_phone: cleanPhone || '9876543210',
@@ -222,23 +247,28 @@ class ShiprocketShippingProvider implements ShippingProvider {
             trackingNumber: awb,
             carrierName: json.courier_name || 'Shiprocket Express',
             trackingUrl: `https://shiprocket.co/tracking/${awb}`,
+            shipmentId,
+            orderId: json.order_id,
           }
         } else {
           const errText = await res.text()
-          console.error('[Shiprocket Create Shipment Failed]', res.status, errText)
+          console.error(`[Shiprocket Create Shipment Failed] Attempt ${attempt}: ${res.status} - ${errText}`)
+          if (attempt <= maxRetries) {
+            await new Promise((r) => setTimeout(r, 2000))
+            continue
+          }
         }
       } catch (err: any) {
-        console.error('[Shiprocket Create Shipment Error]', err.message)
+        console.error(`[Shiprocket Create Shipment Error] Attempt ${attempt}:`, err.message)
+        if (attempt <= maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000))
+          continue
+        }
       }
     }
 
-    // Graceful fallback
-    const fallbackTracking = `SR-GJ-${Date.now().toString().slice(-8)}`
-    return {
-      trackingNumber: fallbackTracking,
-      carrierName: 'Shiprocket Cargo Express',
-      trackingUrl: `https://shiprocket.co/tracking/${fallbackTracking}`,
-    }
+    // Return null when Shiprocket fails so caller knows shipment requires fulfillment retry
+    return null
   }
 
   async trackShipment(trackingNumber: string): Promise<any> {

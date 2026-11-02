@@ -119,17 +119,41 @@ router.post('/verify', async (req: Request, res: Response) => {
     })
 
     // Automatically register shipment in Shiprocket with verified contact phone
+    let shipmentData: any = null
     try {
-      const shipment = await shippingService.createShipment(updated)
-      if (shipment?.trackingNumber) {
+      shipmentData = await shippingService.createShipment(updated)
+      if (shipmentData?.trackingNumber) {
         await prisma.order.update({
           where: { id: updated.id },
           data: {
-            trackingNumber: shipment.trackingNumber,
-            carrierName: shipment.carrierName,
-            trackingUrl: shipment.trackingUrl,
+            trackingNumber: shipmentData.trackingNumber,
+            carrierName: shipmentData.carrierName,
+            trackingUrl: shipmentData.trackingUrl,
+            orderStatus: 'CONFIRMED',
           },
         })
+      } else {
+        // Asynchronous background retry after 3 seconds in case of temporary Shiprocket API congestion
+        setTimeout(async () => {
+          try {
+            console.log(`[Background Shipment Dispatch] Retrying Shiprocket for order ${updated.orderNumber}...`)
+            const bgShipment = await shippingService.createShipment(updated)
+            if (bgShipment?.trackingNumber) {
+              await prisma.order.update({
+                where: { id: updated.id },
+                data: {
+                  trackingNumber: bgShipment.trackingNumber,
+                  carrierName: bgShipment.carrierName,
+                  trackingUrl: bgShipment.trackingUrl,
+                  orderStatus: 'CONFIRMED',
+                },
+              })
+              console.log(`[Background Shipment Dispatch] Success for order ${updated.orderNumber}: ${bgShipment.trackingNumber}`)
+            }
+          } catch (bgErr: any) {
+            console.error(`[Background Shipment Dispatch Error] ${updated.orderNumber}:`, bgErr.message)
+          }
+        }, 3000)
       }
     } catch (shipErr: any) {
       console.warn('[Auto-Shipment Dispatch Warning]', shipErr.message)
@@ -144,6 +168,9 @@ router.post('/verify', async (req: Request, res: Response) => {
         customerPhone: updated.customerPhone,
         phoneUpdatedFromPayment,
         status: updated.orderStatus,
+        trackingNumber: shipmentData?.trackingNumber || null,
+        carrierName: shipmentData?.carrierName || null,
+        trackingUrl: shipmentData?.trackingUrl || null,
       },
     })
   } catch (err: any) {

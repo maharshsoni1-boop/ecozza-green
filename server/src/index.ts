@@ -1,6 +1,13 @@
+import dotenv from 'dotenv'
+import path from 'path'
+
+// Ensure .env is loaded whether run from server/ or project root
+dotenv.config()
+dotenv.config({ path: path.resolve(process.cwd(), '.env') })
+dotenv.config({ path: path.resolve(process.cwd(), 'server/.env') })
+
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 
 import productRoutes from './routes/product.routes.js'
 import authRoutes from './routes/auth.routes.js'
@@ -12,7 +19,6 @@ import pincodeRoutes from './routes/pincode.routes.js'
 import trackRoutes from './routes/track.routes.js'
 import razorpayRoutes from './routes/razorpay.routes.js'
 
-dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 5000
