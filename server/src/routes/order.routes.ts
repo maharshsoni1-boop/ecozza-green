@@ -195,6 +195,13 @@ router.post('/:id/shiprocket', async (req: Request, res: Response) => {
 
     const shipment = await shippingService.createShipment(order)
 
+    if (!shipment) {
+      return res.status(502).json({
+        success: false,
+        error: 'Shiprocket API was unable to register shipment. Please verify address details and pickup location.',
+      })
+    }
+
     const updated = await prisma.order.update({
       where: { id },
       data: {

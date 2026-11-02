@@ -67,6 +67,9 @@ router.post('/verify', async (req: Request, res: Response) => {
 
     const order = await prisma.order.findFirst({
       where: { razorpayOrderId },
+      include: {
+        orderItems: true,
+      },
     })
 
     if (!order) {
@@ -101,62 +104,70 @@ router.post('/verify', async (req: Request, res: Response) => {
 
     const invoiceNumber = `INV-${new Date().getFullYear()}-${order.orderNumber.replace(/[^0-9]/g, '').slice(-4)}`
 
+    // 2. Prepare order payload for Shiprocket creation
+    const orderForShipment = {
+      ...order,
+      customerPhone: verifiedPhone,
+      customerEmail: paymentDetails?.email || order.customerEmail,
+      shippingAddress: updatedShippingAddress,
+    }
+
+    // 3. Register shipment in Shiprocket
+    let shipmentData: any = null
+    try {
+      shipmentData = await shippingService.createShipment(orderForShipment)
+    } catch (shipErr: any) {
+      console.warn('[Shiprocket Initial Dispatch Warning]', shipErr.message)
+    }
+
+    const trackingNumber = shipmentData?.trackingNumber || null
+    const carrierName = shipmentData?.carrierName || 'Shiprocket Express'
+    const trackingUrl = shipmentData?.trackingUrl || (trackingNumber ? `https://shiprocket.co/tracking/${trackingNumber}` : null)
+    const orderStatus = trackingNumber ? 'CONFIRMED' : 'PAID'
+
+    // 4. Save payment and shipment in a single atomic database update
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: {
         paymentStatus: 'PAID',
-        orderStatus: 'PAID',
+        orderStatus,
         customerPhone: verifiedPhone,
         customerEmail: paymentDetails?.email || order.customerEmail,
         shippingAddress: updatedShippingAddress,
         razorpayPaymentId,
         razorpaySignature: razorpaySignature || 'simulated_sig',
         invoiceNumber,
+        trackingNumber,
+        carrierName,
+        trackingUrl,
       },
       include: {
         orderItems: true,
       },
     })
 
-    // Automatically register shipment in Shiprocket with verified contact phone
-    let shipmentData: any = null
-    try {
-      shipmentData = await shippingService.createShipment(updated)
-      if (shipmentData?.trackingNumber) {
-        await prisma.order.update({
-          where: { id: updated.id },
-          data: {
-            trackingNumber: shipmentData.trackingNumber,
-            carrierName: shipmentData.carrierName,
-            trackingUrl: shipmentData.trackingUrl,
-            orderStatus: 'CONFIRMED',
-          },
-        })
-      } else {
-        // Asynchronous background retry after 3 seconds in case of temporary Shiprocket API congestion
-        setTimeout(async () => {
-          try {
-            console.log(`[Background Shipment Dispatch] Retrying Shiprocket for order ${updated.orderNumber}...`)
-            const bgShipment = await shippingService.createShipment(updated)
-            if (bgShipment?.trackingNumber) {
-              await prisma.order.update({
-                where: { id: updated.id },
-                data: {
-                  trackingNumber: bgShipment.trackingNumber,
-                  carrierName: bgShipment.carrierName,
-                  trackingUrl: bgShipment.trackingUrl,
-                  orderStatus: 'CONFIRMED',
-                },
-              })
-              console.log(`[Background Shipment Dispatch] Success for order ${updated.orderNumber}: ${bgShipment.trackingNumber}`)
-            }
-          } catch (bgErr: any) {
-            console.error(`[Background Shipment Dispatch Error] ${updated.orderNumber}:`, bgErr.message)
+    // 5. Background retry if initial sync needed extra time
+    if (!trackingNumber) {
+      setTimeout(async () => {
+        try {
+          console.log(`[Background Shipment Dispatch] Retrying Shiprocket for order ${updated.orderNumber}...`)
+          const bgShipment = await shippingService.createShipment(updated)
+          if (bgShipment?.trackingNumber) {
+            await prisma.order.update({
+              where: { id: updated.id },
+              data: {
+                trackingNumber: bgShipment.trackingNumber,
+                carrierName: bgShipment.carrierName,
+                trackingUrl: bgShipment.trackingUrl,
+                orderStatus: 'CONFIRMED',
+              },
+            })
+            console.log(`[Background Shipment Dispatch] Success for order ${updated.orderNumber}: ${bgShipment.trackingNumber}`)
           }
-        }, 3000)
-      }
-    } catch (shipErr: any) {
-      console.warn('[Auto-Shipment Dispatch Warning]', shipErr.message)
+        } catch (bgErr: any) {
+          console.error(`[Background Shipment Dispatch Error] ${updated.orderNumber}:`, bgErr.message)
+        }
+      }, 2500)
     }
 
     res.json({
@@ -168,9 +179,9 @@ router.post('/verify', async (req: Request, res: Response) => {
         customerPhone: updated.customerPhone,
         phoneUpdatedFromPayment,
         status: updated.orderStatus,
-        trackingNumber: shipmentData?.trackingNumber || null,
-        carrierName: shipmentData?.carrierName || null,
-        trackingUrl: shipmentData?.trackingUrl || null,
+        trackingNumber,
+        carrierName,
+        trackingUrl,
       },
     })
   } catch (err: any) {

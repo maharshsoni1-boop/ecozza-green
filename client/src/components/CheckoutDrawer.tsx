@@ -287,6 +287,8 @@ export function CheckoutDrawer({
                 customerPhone: verifiedData.customerPhone || createdOrder.customerPhone,
                 phoneWasUpdatedFromPayment: verifiedData.phoneUpdatedFromPayment || false,
                 invoiceNumber: verifiedData.invoiceNumber || `INV-${createdOrder.orderNumber}`,
+                trackingNumber: verifiedData.trackingNumber || createdOrder.trackingNumber,
+                trackingUrl: verifiedData.trackingUrl || (verifiedData.trackingNumber ? `https://shiprocket.co/tracking/${verifiedData.trackingNumber}` : null),
               })
               setStep('success')
               onClearCart()
@@ -846,6 +848,30 @@ export function CheckoutDrawer({
                   </p>
                 )}
               </div>
+
+              {/* Shiprocket Tracking Details */}
+              {orderResult.trackingNumber && (
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-medium flex items-center gap-1">
+                      <Truck className="w-3.5 h-3.5 text-emerald-600" /> Shiprocket AWB:
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                      {orderResult.trackingNumber}
+                    </span>
+                  </div>
+                  {orderResult.trackingUrl && (
+                    <a
+                      href={orderResult.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-center text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 py-1.5 rounded-lg transition"
+                    >
+                      Track Package on Shiprocket →
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
             <Button
