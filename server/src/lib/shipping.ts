@@ -9,6 +9,7 @@ export interface ShippingRateResult {
   carrierName: string
   city?: string
   state?: string
+  localities?: string[]
 }
 
 export interface ShippingProvider {
@@ -66,20 +67,40 @@ class ShiprocketShippingProvider implements ShippingProvider {
     const pin = pincode.trim()
     const pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '385001'
 
-    // Attempt live Shiprocket serviceability
+    // Attempt live Shiprocket serviceability & postcode details in parallel
     const token = await this.getToken()
     if (token) {
       try {
-        const url = `https://apiv2.shiprocket.in/v1/external/courier/serviceability?pickup_postcode=${pickupPincode}&delivery_postcode=${pin}&weight=${Math.max(weightKg, 0.5)}&cod=0`
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        })
+        const serviceUrl = `https://apiv2.shiprocket.in/v1/external/courier/serviceability?pickup_postcode=${pickupPincode}&delivery_postcode=${pin}&weight=${Math.max(weightKg, 0.5)}&cod=0`
+        const postcodeUrl = `https://apiv2.shiprocket.in/v1/external/open/postcode/details?postcode=${pin}`
 
-        if (res.ok) {
-          const json = (await res.json()) as any
+        const [serviceRes, postcodeRes] = await Promise.all([
+          fetch(serviceUrl, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          }),
+          fetch(postcodeUrl, {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          }).catch(() => null),
+        ])
+
+        let officialLocalities: string[] = []
+        let postCity: string | undefined
+        let postState: string | undefined
+
+        if (postcodeRes && postcodeRes.ok) {
+          try {
+            const postJson = (await postcodeRes.json()) as any
+            if (postJson.success && postJson.postcode_details) {
+              const loc = postJson.postcode_details.locality
+              officialLocalities = Array.isArray(loc) ? loc : loc ? [loc] : []
+              postCity = postJson.postcode_details.city
+              postState = postJson.postcode_details.state
+            }
+          } catch {}
+        }
+
+        if (serviceRes.ok) {
+          const json = (await serviceRes.json()) as any
           const couriers = json.data?.available_courier_companies || []
 
           if (couriers.length > 0) {
@@ -98,8 +119,9 @@ class ShiprocketShippingProvider implements ShippingProvider {
               isCodAvailable: Boolean(recommended.is_cod),
               deliveryTatDays: tatDays || 4,
               carrierName,
-              city: recommended.city || undefined,
-              state: recommended.state || undefined,
+              city: postCity || recommended.city || undefined,
+              state: postState || recommended.state || undefined,
+              localities: officialLocalities,
             }
           }
         }
@@ -150,22 +172,27 @@ class ShiprocketShippingProvider implements ShippingProvider {
           tax: 5,
         }))
 
+        const nameParts = (order.customerName || 'Customer').trim().split(/\s+/)
+        const firstName = nameParts[0] || 'Customer'
+        const lastName = nameParts.slice(1).join(' ') || ''
+        const cleanPhone = (order.customerPhone || '9876543210').replace(/\D/g, '').slice(-10)
+
         // Create Custom Adhoc Shipment in Shiprocket
         const payload = {
           order_id: order.orderNumber,
           order_date: new Date(order.createdAt || Date.now()).toISOString().split('T')[0],
-          pickup_location: 'Primary',
+          pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION || 'Primary',
           channel_id: '',
-          billing_customer_name: order.customerName,
-          billing_last_name: '',
-          billing_address: shippingAddress.addressLine1 || shippingAddress.addressLine || 'Address',
-          billing_address_2: shippingAddress.addressLine2 || '',
-          billing_city: shippingAddress.city || 'City',
-          billing_pincode: shippingAddress.postalCode || shippingAddress.pincode || '380001',
+          billing_customer_name: firstName,
+          billing_last_name: lastName,
+          billing_address: shippingAddress.addressLine1 || shippingAddress.addressLine || 'Plot 1, Ecozza Green Delivery',
+          billing_address_2: shippingAddress.addressLine2 || (shippingAddress.landmark ? `Near: ${shippingAddress.landmark}` : ''),
+          billing_city: shippingAddress.city || 'Palanpur',
+          billing_pincode: shippingAddress.postalCode || shippingAddress.pincode || '385001',
           billing_state: shippingAddress.state || 'Gujarat',
           billing_country: 'India',
           billing_email: order.customerEmail || 'care@ecozzagreen.in',
-          billing_phone: order.customerPhone || '9876543210',
+          billing_phone: cleanPhone || '9876543210',
           shipping_is_billing: true,
           order_items: orderItems.length ? orderItems : [{ name: 'Ecozza Green Biochar', sku: 'EG-BIOCHAR-5KG', units: 1, selling_price: order.totalAmount || 449 }],
           payment_method: order.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
@@ -189,12 +216,16 @@ class ShiprocketShippingProvider implements ShippingProvider {
           const json = (await res.json()) as any
           const shipmentId = json.shipment_id || json.order_id
           const awb = json.awb_code || `SR-${shipmentId}`
+          console.log(`[Shiprocket Shipment Created] Order: ${order.orderNumber}, Shipment ID: ${shipmentId}, AWB: ${awb}`)
 
           return {
             trackingNumber: awb,
             carrierName: json.courier_name || 'Shiprocket Express',
             trackingUrl: `https://shiprocket.co/tracking/${awb}`,
           }
+        } else {
+          const errText = await res.text()
+          console.error('[Shiprocket Create Shipment Failed]', res.status, errText)
         }
       } catch (err: any) {
         console.error('[Shiprocket Create Shipment Error]', err.message)

@@ -15,6 +15,11 @@ import {
   FileText,
   Info,
   BookOpen,
+  Menu,
+  X,
+  Smartphone,
+  Download,
+  Home,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -29,6 +34,7 @@ import { HowToUse } from '@/components/HowToUse'
 import { AboutContact } from '@/components/AboutContact'
 import { PolicyModal, type PolicyKey } from '@/components/PolicyModal'
 import { CheckoutDrawer, type CartItem } from '@/components/CheckoutDrawer'
+import { CheckoutPage } from '@/components/CheckoutPage'
 import { ProductDetail, type Product, type ProductVariant } from '@/components/ProductDetail'
 
 const MOCK_PRODUCTS: Product[] = [
@@ -104,13 +110,37 @@ Designed for container plants, elevated garden beds, indoor tropicals, and rooft
 import { apiUrl } from '@/lib/api'
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'shop' | 'calculator' | 'how-to-use' | 'track' | 'lab' | 'b2b' | 'why' | 'about'>('shop')
+  const [activeTab, setActiveTab] = useState<'shop' | 'calculator' | 'how-to-use' | 'track' | 'lab' | 'b2b' | 'why' | 'about' | 'checkout'>('shop')
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedVariants, setSelectedVariants] = useState<Record<string, ProductVariant>>({})
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [activePolicy, setActivePolicy] = useState<PolicyKey | null>(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Listen for PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setShowInstallPrompt(true)
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setShowInstallPrompt(false)
+    }
+    setDeferredPrompt(null)
+  }
 
   // Fetch real products from server
   useEffect(() => {
@@ -212,6 +242,31 @@ export default function App() {
         <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
         <span>FCO Compliant 100% Organic Soil Carbon | Pan-India Doorstep Logistics via Shiprocket</span>
       </div>
+
+      {/* PWA Install Notification Banner */}
+      {showInstallPrompt && (
+        <div className="bg-emerald-900 text-white px-4 py-2 flex items-center justify-between text-xs border-b border-emerald-800 shadow-sm animate-in fade-in duration-300">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Install <strong>Ecozza Green App</strong> for quick access, offline tracking &amp; smooth checkout.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleInstallApp}
+              className="bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold px-3 py-1 rounded-full text-xs shadow-xs transition"
+            >
+              Install App
+            </button>
+            <button
+              onClick={() => setShowInstallPrompt(false)}
+              className="text-emerald-300 hover:text-white p-1"
+              aria-label="Dismiss banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Navbar */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-emerald-100">
@@ -324,26 +379,144 @@ export default function App() {
             </button>
           </nav>
 
-          {/* Cart Trigger */}
-          <div className="flex items-center gap-3">
+          {/* Cart & Mobile Hamburger */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button
-              onClick={() => setIsCheckoutOpen(true)}
+              onClick={() => {
+                setActiveTab('checkout')
+                setSelectedProduct(null)
+                setIsMobileMenuOpen(false)
+              }}
               className="relative bg-emerald-700 hover:bg-emerald-800 text-white shadow-md shadow-emerald-700/20 font-bold text-xs"
             >
-              <ShoppingBag className="w-4 h-4 mr-2" />
-              <span>Cart</span>
+              <ShoppingBag className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Checkout</span>
               {totalItemsCount > 0 && (
-                <span className="ml-1.5 px-2 py-0.5 text-xs font-bold bg-emerald-950 text-white rounded-full">
+                <span className="ml-1 sm:ml-1.5 px-1.5 py-0.5 text-[10px] sm:text-xs font-bold bg-emerald-950 text-white rounded-full">
                   {totalItemsCount}
                 </span>
               )}
             </Button>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition border border-slate-200"
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5 text-emerald-800" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden bg-white border-b border-emerald-100 shadow-xl px-4 py-4 space-y-2 animate-in slide-in-from-top-2 duration-200">
+            <div className="grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
+              <button
+                onClick={() => {
+                  setActiveTab('shop')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'shop' && !selectedProduct ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Home className="w-4 h-4 text-emerald-600" />
+                <span>Shop Biochar</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('calculator')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'calculator' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Calculator className="w-4 h-4 text-emerald-600" />
+                <span>Dose Calculator</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('track')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'track' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Truck className="w-4 h-4 text-emerald-600" />
+                <span>Track Order</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('how-to-use')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'how-to-use' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <BookOpen className="w-4 h-4 text-emerald-600" />
+                <span>How to Apply</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('lab')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'lab' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <FileCheck className="w-4 h-4 text-emerald-600" />
+                <span>Lab Reports</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('b2b')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'b2b' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>B2B Bulk Quotes</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('why')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'why' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>Why Biochar?</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('about')
+                  setSelectedProduct(null)
+                  setIsMobileMenuOpen(false)
+                }}
+                className={`p-2.5 rounded-lg text-left flex items-center gap-2 ${activeTab === 'about' ? 'bg-emerald-50 text-emerald-900 font-bold' : 'hover:bg-slate-50'}`}
+              >
+                <Info className="w-4 h-4 text-emerald-600" />
+                <span>About Us</span>
+              </button>
+            </div>
+
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallApp}
+                className="w-full mt-2 py-2 bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs"
+              >
+                <Download className="w-4 h-4" /> Install Ecozza App to Device
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full pb-20 lg:pb-8">
         {/* TAB 1: SHOP STOREFRONT */}
         {activeTab === 'shop' && (
           selectedProduct ? (
@@ -353,7 +526,8 @@ export default function App() {
               onAddToCart={(prod, variant, qty) => addToCart(prod, variant, qty)}
               onBuyNow={(prod, variant, qty) => {
                 addToCart(prod, variant, qty)
-                setIsCheckoutOpen(true)
+                setActiveTab('checkout')
+                setSelectedProduct(null)
               }}
               onSelectProduct={(p) => setSelectedProduct(p)}
               onOpenCalculator={() => {
@@ -592,6 +766,23 @@ export default function App() {
 
         {/* TAB 8: ABOUT & CONTACT */}
         {activeTab === 'about' && <AboutContact />}
+
+        {/* TAB 9: FULL PAGE DELIVERY & CHECKOUT */}
+        {activeTab === 'checkout' && (
+          <CheckoutPage
+            cart={cart}
+            onUpdateQuantity={updateQuantity}
+            onClearCart={() => setCart([])}
+            onBackToShop={() => {
+              setActiveTab('shop')
+              setSelectedProduct(null)
+            }}
+            onTrackOrder={(orderNumber) => {
+              setActiveTab('track')
+              setSelectedProduct(null)
+            }}
+          />
+        )}
       </main>
 
       {/* Cart & Checkout Drawer */}
@@ -601,6 +792,11 @@ export default function App() {
         cart={cart}
         onUpdateQuantity={updateQuantity}
         onClearCart={() => setCart([])}
+        onOpenFullCheckout={() => {
+          setIsCheckoutOpen(false)
+          setActiveTab('checkout')
+          setSelectedProduct(null)
+        }}
       />
 
       {/* Policy Modal */}
@@ -653,6 +849,72 @@ export default function App() {
           © {new Date().getFullYear()} Ecozza Green. All rights reserved.
         </div>
       </footer>
+
+      {/* Mobile Sticky Bottom Navigation Bar */}
+      {activeTab !== 'checkout' && (
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 py-2 px-3 flex justify-around items-center shadow-lg">
+          <button
+            onClick={() => {
+              setActiveTab('shop')
+              setSelectedProduct(null)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+              activeTab === 'shop' && !selectedProduct ? 'text-emerald-800' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span>Store</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('calculator')
+              setSelectedProduct(null)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+              activeTab === 'calculator' ? 'text-emerald-800' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Calculator className="w-5 h-5" />
+            <span>Dose Calc</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('track')
+              setSelectedProduct(null)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${
+              activeTab === 'track' ? 'text-emerald-800' : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <Truck className="w-5 h-5" />
+            <span>Track</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('checkout')
+              setSelectedProduct(null)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            className="relative flex flex-col items-center gap-0.5 text-[10px] font-bold text-slate-500 hover:text-emerald-800 transition"
+          >
+            <div className="relative">
+              <ShoppingBag className="w-5 h-5" />
+              {totalItemsCount > 0 && (
+                <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-emerald-700 text-white text-[9px] flex items-center justify-center font-bold">
+                  {totalItemsCount}
+                </span>
+              )}
+            </div>
+            <span>Checkout</span>
+          </button>
+        </nav>
+      )}
     </div>
   )
 }

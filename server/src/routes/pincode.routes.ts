@@ -36,6 +36,7 @@ router.get('/:pincode', async (req: Request, res: Response) => {
         pincode: trimmed,
         city,
         state,
+        localities: shippingInfo.localities || [],
         isServiceable: shippingInfo.serviceable,
         isCodAvailable: shippingInfo.isCodAvailable,
         deliveryTatDays: shippingInfo.deliveryTatDays,

@@ -1,0 +1,55 @@
+{
+  "name": "Ecozza Green - Biochar Soil Conditioner",
+  "short_name": "Ecozza Green",
+  "description": "FCO-compliant organic biochar soil conditioner with live Shiprocket doorstep logistics across India.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "categories": ["shopping", "agriculture", "business"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-circle.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Delivery & Checkout",
+      "short_name": "Checkout",
+      "description": "View cart and complete checkout",
+      "url": "/?tab=checkout",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Track Order",
+      "short_name": "Track",
+      "description": "Track live Shiprocket courier shipment",
+      "url": "/?tab=track",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dose Calculator",
+      "short_name": "Calculator",
+      "description": "Calculate biochar dosage for your farm or garden",
+      "url": "/?tab=calculator",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
