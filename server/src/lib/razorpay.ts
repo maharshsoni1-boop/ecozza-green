@@ -75,3 +75,37 @@ export function verifyRazorpaySignature(
 
   return generatedSignature === signature
 }
+
+/**
+ * Fetch verified payment details from Razorpay (including verified contact phone and email)
+ */
+export async function fetchRazorpayPaymentDetails(
+  paymentId: string
+): Promise<{ contact?: string; email?: string } | null> {
+  const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_ecozza'
+  const keySecret = process.env.RAZORPAY_KEY_SECRET || 'mock_secret_key_ecozza'
+
+  if (keyId.includes('mock') || !keySecret || keySecret.includes('mock')) {
+    return null
+  }
+
+  try {
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+      headers: {
+        Authorization: `Basic ${auth}`,
+      },
+    })
+
+    if (response.ok) {
+      const data = (await response.json()) as any
+      return {
+        contact: data.contact,
+        email: data.email,
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Razorpay Fetch Payment Details Error]', err.message)
+  }
+  return null
+}

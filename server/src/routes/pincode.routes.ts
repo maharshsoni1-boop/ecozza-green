@@ -27,21 +27,22 @@ router.get('/:pincode', async (req: Request, res: Response) => {
       where: { pincode: trimmed },
     })
 
+    const city = shippingInfo.city || record?.city || 'Standard Zone'
+    const state = shippingInfo.state || record?.state || 'India'
+
     res.json({
       success: true,
       data: {
         pincode: trimmed,
-        city: record?.city || 'Standard Zone',
-        state: record?.state || 'India',
+        city,
+        state,
         isServiceable: shippingInfo.serviceable,
         isCodAvailable: shippingInfo.isCodAvailable,
         deliveryTatDays: shippingInfo.deliveryTatDays,
         shippingFee: shippingInfo.shippingFee,
         isFreeShipping: shippingInfo.isFreeShipping,
         carrierName: shippingInfo.carrierName,
-        message: shippingInfo.isFreeShipping
-          ? `FREE delivery to ${record?.city || 'your area'} in ${shippingInfo.deliveryTatDays} business days!`
-          : `Delivering in approx. ${shippingInfo.deliveryTatDays} business days via ${shippingInfo.carrierName}.`,
+        message: `Delivering to ${city} in approx. ${shippingInfo.deliveryTatDays} business days via ${shippingInfo.carrierName}.`,
       },
     })
   } catch (err: any) {

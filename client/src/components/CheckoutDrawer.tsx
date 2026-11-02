@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   ShoppingBag,
   X,
@@ -57,25 +57,49 @@ export function CheckoutDrawer({
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0)
-  const totalWeightKg = cart.reduce((acc, item) => acc + item.weightKg * item.quantity, 0)
+  const totalWeightKg = cart.reduce((acc, item) => acc + (item.weightKg || 1) * item.quantity, 0)
 
-  // Shipping Fee calculation
-  const shippingFee = pincodeInfo?.shippingFee ?? (subtotal >= 1499 ? 0 : 99)
+  // Shipping Fee calculation (directly from Shiprocket API based on accumulated cart weight)
+  const shippingFee = pincodeInfo?.shippingFee ?? (totalWeightKg <= 5 ? 99 : totalWeightKg <= 10 ? 149 : 249)
   const gst = Math.round(subtotal * 0.05)
   const total = subtotal + gst + shippingFee
 
-  // Live Pincode Verification
-  const checkPincode = async () => {
-    if (!pincode.trim() || pincode.trim().length !== 6) {
-      setPinError('Please enter a valid 6-digit PIN code')
+  // Pre-load pincode if user previously checked on product page or stored
+  useEffect(() => {
+    try {
+      const savedPin = localStorage.getItem('ecozza_pincode')
+      if (savedPin && !pincode) {
+        setPincode(savedPin)
+      }
+    } catch {}
+  }, [])
+
+  // Auto-fetch / update Shiprocket shipping rate whenever accumulated cart weight changes or pincode changes
+  useEffect(() => {
+    const cleanPin = pincode.trim()
+    if (cleanPin.length === 6 && totalWeightKg > 0) {
+      calculateShipping(cleanPin, totalWeightKg)
+    }
+  }, [totalWeightKg, pincode])
+
+  // Live Pincode & Accumulated Weight Verification
+  const calculateShipping = async (overridePin?: string, overrideWeight?: number) => {
+    const pinToUse = (overridePin || pincode).trim()
+    const weightToUse = overrideWeight ?? totalWeightKg
+
+    if (!pinToUse || pinToUse.length !== 6) {
+      if (!overridePin) setPinError('Please enter a valid 6-digit postal code')
       return
     }
+
     setPinLoading(true)
     setPinError(null)
 
     let json: any = null
     try {
-      const res = await fetch(apiUrl(`/api/pincode/${pincode.trim()}?weightKg=${totalWeightKg}&subtotal=${subtotal}`))
+      const res = await fetch(
+        apiUrl(`/api/pincode/${pinToUse}?weightKg=${Math.max(weightToUse, 0.5)}&subtotal=${subtotal}`)
+      )
       if (res.ok) {
         json = await res.json()
       }
@@ -87,9 +111,12 @@ export function CheckoutDrawer({
       setPincodeInfo(json.data)
       setCity(json.data.city)
       setState(json.data.state)
+      try {
+        localStorage.setItem('ecozza_pincode', pinToUse)
+      } catch {}
     } else {
-      // Resilient fallback for Indian postal codes (never block customer on static frontends)
-      const pinPrefix = parseInt(pincode.trim().slice(0, 2), 10)
+      // Resilient fallback for Indian postal codes
+      const pinPrefix = parseInt(pinToUse.slice(0, 2), 10)
       let guessedState = 'India'
       let guessedCity = 'City Area'
       if (pinPrefix >= 36 && pinPrefix <= 39) {
@@ -115,21 +142,18 @@ export function CheckoutDrawer({
         guessedCity = 'Jaipur Zone'
       }
 
-      const isFree = subtotal >= 1499
-      const fee = isFree ? 0 : 99
+      const fallbackFee = weightToUse <= 5 ? 99 : weightToUse <= 10 ? 149 : 249
       const fallbackData = {
-        pincode: pincode.trim(),
+        pincode: pinToUse,
         city: guessedCity,
         state: guessedState,
         isServiceable: true,
         isCodAvailable: false,
         deliveryTatDays: 4,
-        shippingFee: fee,
-        isFreeShipping: isFree,
-        carrierName: 'Shiprocket Express',
-        message: isFree
-          ? `FREE express delivery to ${guessedState} in 3-5 business days!`
-          : `Delivering to ${guessedState} in approx. 3-5 business days via Shiprocket Express.`,
+        shippingFee: fallbackFee,
+        isFreeShipping: false,
+        carrierName: 'Shiprocket Surface Express',
+        message: `Delivering to ${guessedState} in approx. 3-5 business days via Shiprocket Express.`,
       }
       setPincodeInfo(fallbackData)
       setCity(guessedCity)
@@ -142,6 +166,14 @@ export function CheckoutDrawer({
   const handlePlaceOrder = async () => {
     if (!customerName || !customerPhone || !addressLine) {
       alert('Please fill in Name, Phone, and Address Line.')
+      return
+    }
+    if (!/^[6-9][0-9]{9}$/.test(customerPhone.trim())) {
+      alert('Please enter a valid 10-digit Indian mobile number (e.g. 9825012345).')
+      return
+    }
+    if (!pincodeInfo) {
+      alert('Please enter and check your 6-digit delivery pincode to calculate shipping.')
       return
     }
 
@@ -214,9 +246,12 @@ export function CheckoutDrawer({
                 }),
               })
               const verifyJson = await verifyRes.json()
+              const verifiedData = verifyJson.data || {}
               setOrderResult({
                 ...createdOrder,
-                invoiceNumber: verifyJson.data?.invoiceNumber || `INV-${createdOrder.orderNumber}`,
+                customerPhone: verifiedData.customerPhone || createdOrder.customerPhone,
+                phoneWasUpdatedFromPayment: verifiedData.phoneUpdatedFromPayment || false,
+                invoiceNumber: verifiedData.invoiceNumber || `INV-${createdOrder.orderNumber}`,
               })
               setStep('success')
               onClearCart()
@@ -254,10 +289,13 @@ export function CheckoutDrawer({
           }),
         })
         const verifyJson = await verifyRes.json()
+        const verifiedData = verifyJson.data || {}
 
         setOrderResult({
           ...createdOrder,
-          invoiceNumber: verifyJson.data?.invoiceNumber || `INV-${createdOrder.orderNumber}`,
+          customerPhone: verifiedData.customerPhone || createdOrder.customerPhone,
+          phoneWasUpdatedFromPayment: verifiedData.phoneUpdatedFromPayment || false,
+          invoiceNumber: verifiedData.invoiceNumber || `INV-${createdOrder.orderNumber}`,
         })
         setStep('success')
         onClearCart()
@@ -368,9 +406,9 @@ export function CheckoutDrawer({
                     <span className="font-semibold text-slate-900">₹{gst}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Shipping</span>
-                    <span className="font-semibold text-emerald-700">
-                      {subtotal >= 1499 ? 'FREE (Orders > ₹1499)' : 'Calculated at checkout'}
+                    <span>Freight Shipping ({totalWeightKg} kg total)</span>
+                    <span className="font-semibold text-slate-800">
+                      {pincodeInfo ? `₹${pincodeInfo.shippingFee}` : 'Calculated at checkout'}
                     </span>
                   </div>
                 </div>
@@ -391,32 +429,56 @@ export function CheckoutDrawer({
           <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs">
             {/* Pincode Check */}
             <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-2">
-              <label className="font-bold text-emerald-950 uppercase block text-[10px]">
-                Delivery Postal Pincode
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-emerald-950 uppercase block text-[10px]">
+                  Delivery Postal Pincode *
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  Total Cart Weight: <strong>{totalWeightKg} kg</strong>
+                </span>
+              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
                   maxLength={6}
                   value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  placeholder="e.g. 380015"
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '')
+                    setPincode(val)
+                    if (val.length === 6) {
+                      calculateShipping(val, totalWeightKg)
+                    }
+                  }}
+                  placeholder="Enter 6-digit Pincode (e.g. 380054)"
                   className="flex-1 p-2 rounded-lg border border-slate-200 bg-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <Button
                   size="sm"
+                  type="button"
                   variant="outline"
-                  onClick={checkPincode}
-                  disabled={pinLoading}
+                  onClick={() => calculateShipping()}
+                  disabled={pinLoading || pincode.trim().length !== 6}
                   className="text-xs border-emerald-300 text-emerald-800"
                 >
-                  {pinLoading ? 'Checking...' : 'Check TAT'}
+                  {pinLoading ? 'Calculating...' : 'Calculate Shipping'}
                 </Button>
               </div>
 
               {pincodeInfo && (
-                <div className="text-[11px] text-emerald-800 font-medium pt-1">
-                  ✓ Delivering to {pincodeInfo.city}, {pincodeInfo.state} in approx. {pincodeInfo.deliveryTatDays} days via {pincodeInfo.carrierName} ({pincodeInfo.isFreeShipping ? 'FREE' : `₹${pincodeInfo.shippingFee}`}).
+                <div className="bg-white p-3 rounded-lg border border-emerald-200 text-[11px] text-slate-700 space-y-1 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-900 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      {pincodeInfo.city}, {pincodeInfo.state} ({pincodeInfo.pincode})
+                    </span>
+                    <span className="font-black text-xs text-emerald-950 bg-emerald-100 px-2 py-0.5 rounded font-mono">
+                      ₹{shippingFee} Shipping
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 flex items-center justify-between">
+                    <span>Courier: <strong>{pincodeInfo.carrierName || 'Shiprocket Surface'}</strong></span>
+                    <span>Estimated Delivery: <strong>{pincodeInfo.deliveryTatDays || 3}–{(pincodeInfo.deliveryTatDays || 3) + 2} days</strong></span>
+                  </div>
                 </div>
               )}
               {pinError && <div className="text-[11px] text-red-600 font-medium">{pinError}</div>}
@@ -440,17 +502,33 @@ export function CheckoutDrawer({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-bold text-slate-700 uppercase block text-[10px] mb-1">
-                    Phone Number *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 uppercase block text-[10px]">
+                      Phone Number * (10 Digits)
+                    </label>
+                    {customerPhone.length === 10 && /^[6-9][0-9]{9}$/.test(customerPhone) && (
+                      <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-0.5">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Valid
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="tel"
+                    maxLength={10}
                     required
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="10-digit mobile"
-                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setCustomerPhone(val)
+                    }}
+                    placeholder="e.g. 9825012345"
+                    className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium font-mono text-xs"
                   />
+                  {customerPhone && !/^[6-9][0-9]{9}$/.test(customerPhone) && (
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      Must be 10 digits starting with 6, 7, 8, or 9
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="font-bold text-slate-700 uppercase block text-[10px] mb-1">
@@ -505,9 +583,9 @@ export function CheckoutDrawer({
                 <span className="font-semibold text-slate-900">₹{gst}</span>
               </div>
               <div className="flex justify-between">
-                <span>Freight Shipping</span>
+                <span>Freight Shipping ({totalWeightKg} kg via Shiprocket)</span>
                 <span className="font-semibold text-slate-900">
-                  {shippingFee === 0 ? 'FREE' : `₹${shippingFee}`}
+                  {pincodeInfo ? `₹${shippingFee}` : 'Enter Pincode Above'}
                 </span>
               </div>
               <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
@@ -547,18 +625,39 @@ export function CheckoutDrawer({
               Payment confirmed via Razorpay. Your certified biochar is being prepared for dispatch.
             </p>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 w-full text-xs text-left space-y-1.5 font-mono">
-              <div className="flex justify-between">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 w-full text-xs text-left space-y-2">
+              <div className="flex justify-between font-mono">
                 <span className="text-slate-400">Order ID:</span>
                 <span className="font-bold text-slate-900">{orderResult.orderNumber}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between font-mono">
                 <span className="text-slate-400">Tax Invoice:</span>
                 <span className="font-bold text-emerald-800">{orderResult.invoiceNumber}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between font-mono">
                 <span className="text-slate-400">Total Paid:</span>
                 <span className="font-bold text-slate-900">₹{orderResult.totalAmount}</span>
+              </div>
+
+              {/* Verified Delivery Contact Number */}
+              <div className="pt-2 border-t border-slate-200 space-y-1">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                  Delivery Contact Phone:
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-slate-900 font-mono text-sm">
+                    +91 {orderResult.customerPhone}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Verified via Payment
+                  </span>
+                </div>
+                {orderResult.phoneWasUpdatedFromPayment && (
+                  <p className="text-[10px] text-emerald-700 font-medium">
+                    ✓ Automatically synchronized with your verified Razorpay / UPI phone number.
+                  </p>
+                )}
               </div>
             </div>
 

@@ -7,6 +7,8 @@ export interface ShippingRateResult {
   isCodAvailable: boolean
   deliveryTatDays: number
   carrierName: string
+  city?: string
+  state?: string
 }
 
 export interface ShippingProvider {
@@ -60,16 +62,9 @@ class ShiprocketShippingProvider implements ShippingProvider {
     }
   }
 
-  async getShippingRate(pincode: string, weightKg: number, subtotal: number): Promise<ShippingRateResult> {
+  async getShippingRate(pincode: string, weightKg: number, _subtotal: number): Promise<ShippingRateResult> {
     const pin = pincode.trim()
     const pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '385001'
-
-    // Check store free shipping threshold (default ₹1499)
-    const thresholdSetting = await prisma.systemSetting.findUnique({
-      where: { key: 'free_shipping_threshold' },
-    }).catch(() => null)
-    const freeThreshold = thresholdSetting ? parseFloat(thresholdSetting.value) : 1499
-    const isFreeShipping = subtotal >= freeThreshold
 
     // Attempt live Shiprocket serviceability
     const token = await this.getToken()
@@ -88,23 +83,23 @@ class ShiprocketShippingProvider implements ShippingProvider {
           const couriers = json.data?.available_courier_companies || []
 
           if (couriers.length > 0) {
-            // Sort by lowest rate or fastest delivery
-            const recommended = couriers[0]
+            // Pick lowest rate among available couriers (most cost-effective for customer)
+            const sortedCouriers = [...couriers].sort((a: any, b: any) => parseFloat(a.rate) - parseFloat(b.rate))
+            const recommended = sortedCouriers[0]
             const carrierName = `Shiprocket (${recommended.courier_name})`
             const tatDays = recommended.estimated_delivery_days ? parseInt(recommended.estimated_delivery_days, 10) : 4
-
-            let computedFee = 0
-            if (!isFreeShipping) {
-              computedFee = weightKg <= 5 ? 99 : weightKg <= 10 ? 149 : weightKg <= 25 ? 249 : 249 + Math.ceil(weightKg - 25) * 15
-            }
+            // Live shipping cost directly from Shiprocket API response
+            const liveShippingFee = Math.round(parseFloat(recommended.rate))
 
             return {
-              shippingFee: isFreeShipping ? 0 : computedFee,
-              isFreeShipping,
+              shippingFee: liveShippingFee,
+              isFreeShipping: false,
               serviceable: true,
               isCodAvailable: Boolean(recommended.is_cod),
               deliveryTatDays: tatDays || 4,
               carrierName,
+              city: recommended.city || undefined,
+              state: recommended.state || undefined,
             }
           }
         }
@@ -125,8 +120,8 @@ class ShiprocketShippingProvider implements ShippingProvider {
     else fallbackFee = 249 + Math.ceil(weightKg - 25) * 15
 
     return {
-      shippingFee: isFreeShipping ? 0 : fallbackFee,
-      isFreeShipping,
+      shippingFee: fallbackFee,
+      isFreeShipping: false,
       serviceable: pinRecord ? pinRecord.isServiceable : true,
       isCodAvailable: false,
       deliveryTatDays: pinRecord ? pinRecord.deliveryTatDays : 4,

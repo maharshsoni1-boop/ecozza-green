@@ -1,6 +1,11 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
-import { createRazorpayOrder, verifyRazorpaySignature } from '../lib/razorpay.js'
+import {
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  fetchRazorpayPaymentDetails,
+} from '../lib/razorpay.js'
+import { shippingService } from '../lib/shipping.js'
 
 const router = Router()
 
@@ -68,6 +73,32 @@ router.post('/verify', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Matching order not found' })
     }
 
+    // 1. Fetch verified phone & contact from Razorpay payment details
+    const paymentDetails = await fetchRazorpayPaymentDetails(razorpayPaymentId)
+    let verifiedPhone = order.customerPhone
+    let phoneUpdatedFromPayment = false
+
+    if (paymentDetails?.contact) {
+      // Clean up phone number (remove country code +91 if present for standard 10 digits)
+      const cleanContact = paymentDetails.contact.replace(/\D/g, '').slice(-10)
+      if (cleanContact.length === 10) {
+        if (cleanContact !== order.customerPhone) {
+          phoneUpdatedFromPayment = true
+        }
+        verifiedPhone = cleanContact
+      }
+    }
+
+    // Update shippingAddress JSON if it contains phone
+    let updatedShippingAddress = order.shippingAddress
+    try {
+      const parsedAddress = JSON.parse(order.shippingAddress)
+      if (parsedAddress && typeof parsedAddress === 'object') {
+        parsedAddress.phone = verifiedPhone
+        updatedShippingAddress = JSON.stringify(parsedAddress)
+      }
+    } catch {}
+
     const invoiceNumber = `INV-${new Date().getFullYear()}-${order.orderNumber.replace(/[^0-9]/g, '').slice(-4)}`
 
     const updated = await prisma.order.update({
@@ -75,11 +106,34 @@ router.post('/verify', async (req: Request, res: Response) => {
       data: {
         paymentStatus: 'PAID',
         orderStatus: 'PAID',
+        customerPhone: verifiedPhone,
+        customerEmail: paymentDetails?.email || order.customerEmail,
+        shippingAddress: updatedShippingAddress,
         razorpayPaymentId,
         razorpaySignature: razorpaySignature || 'simulated_sig',
         invoiceNumber,
       },
+      include: {
+        orderItems: true,
+      },
     })
+
+    // Automatically register shipment in Shiprocket with verified contact phone
+    try {
+      const shipment = await shippingService.createShipment(updated)
+      if (shipment?.trackingNumber) {
+        await prisma.order.update({
+          where: { id: updated.id },
+          data: {
+            trackingNumber: shipment.trackingNumber,
+            carrierName: shipment.carrierName,
+            trackingUrl: shipment.trackingUrl,
+          },
+        })
+      }
+    } catch (shipErr: any) {
+      console.warn('[Auto-Shipment Dispatch Warning]', shipErr.message)
+    }
 
     res.json({
       success: true,
@@ -87,6 +141,8 @@ router.post('/verify', async (req: Request, res: Response) => {
         orderId: updated.id,
         orderNumber: updated.orderNumber,
         invoiceNumber: updated.invoiceNumber,
+        customerPhone: updated.customerPhone,
+        phoneUpdatedFromPayment,
         status: updated.orderStatus,
       },
     })
